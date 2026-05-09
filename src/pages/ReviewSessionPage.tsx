@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { dueWords, putWord } from "../db";
+import { isLanguage, LANGUAGES } from "../languages";
 import { applyGrade } from "../srs";
 import { speak } from "../speech";
 import { useSettings } from "../settings";
 import { LanguageBadge } from "../components/LanguageBadge";
 import { PlayButton } from "../components/PlayButton";
-import type { ReviewGrade, VocabularyWord } from "../types";
+import type { Language, ReviewGrade, VocabularyWord } from "../types";
 
 interface SessionStats {
   again: number;
@@ -17,7 +18,10 @@ interface SessionStats {
 
 export function ReviewSessionPage() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [settings] = useSettings();
+  const langParam = params.get("lang");
+  const language: Language | null = isLanguage(langParam) ? langParam : null;
   const [queue, setQueue] = useState<VocabularyWord[] | null>(null);
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
@@ -29,20 +33,33 @@ export function ReviewSessionPage() {
   });
 
   useEffect(() => {
-    dueWords().then((words) => {
+    dueWords(language).then((words) => {
       const shuffled = [...words].sort(() => Math.random() - 0.5);
       setQueue(shuffled);
     });
-  }, []);
+  }, [language]);
 
   // Auto-play the term whenever a new card surfaces (if enabled in Settings).
+  // If auto-flip-after-speak is also on, reveal the answer when the utterance
+  // finishes — but only if we're still on the same card.
   useEffect(() => {
     if (!settings.autoPlayReview) return;
     if (!queue || queue.length === 0) return;
     if (index >= queue.length) return;
     const card = queue[index];
-    speak(card.term, card.language);
-  }, [queue, index, settings.autoPlayReview]);
+    const cardId = card.id;
+    speak(card.term, card.language, {
+      onEnd: () => {
+        if (!settings.autoFlipAfterSpeak) return;
+        // Only flip if we haven't navigated away from this card.
+        setRevealed((prev) => {
+          if (prev) return prev;
+          if (queue[index]?.id !== cardId) return prev;
+          return true;
+        });
+      },
+    });
+  }, [queue, index, settings.autoPlayReview, settings.autoFlipAfterSpeak]);
 
   if (!queue) {
     return <p className="py-12 text-center text-slate-400">Loading…</p>;
@@ -107,6 +124,7 @@ export function ReviewSessionPage() {
           ← End
         </button>
         <span className="text-sm text-slate-500">
+          {language ? `${LANGUAGES[language].label} · ` : ""}
           {index + 1} / {queue.length}
         </span>
       </header>

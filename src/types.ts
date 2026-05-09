@@ -52,6 +52,7 @@ export type ReviewGrade = "again" | "hard" | "good" | "easy";
 
 export interface AppSettings {
   autoPlayReview: boolean;
+  autoFlipAfterSpeak: boolean;
   speechRate: number;
 }
 

@@ -48,33 +48,23 @@ export function SettingsPage() {
 
       <section className="card space-y-3">
         <h2 className="font-medium">Review</h2>
-        <label className="flex items-center justify-between gap-3">
-          <span>
-            <span className="block text-sm font-medium">Auto-play term</span>
-            <span className="block text-xs text-slate-500">
-              Speak each card aloud as it appears in a review session.
-            </span>
-          </span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={settings.autoPlayReview}
-            onClick={() =>
-              updateSettings({ autoPlayReview: !settings.autoPlayReview })
-            }
-            className={[
-              "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition",
-              settings.autoPlayReview ? "bg-slate-900" : "bg-slate-300",
-            ].join(" ")}
-          >
-            <span
-              className={[
-                "inline-block h-5 w-5 transform rounded-full bg-white shadow transition",
-                settings.autoPlayReview ? "translate-x-6" : "translate-x-1",
-              ].join(" ")}
-            />
-          </button>
-        </label>
+        <ToggleRow
+          label="Auto-play term"
+          description="Speak each card aloud as it appears in a review session."
+          value={settings.autoPlayReview}
+          onChange={(v) => updateSettings({ autoPlayReview: v })}
+        />
+        <ToggleRow
+          label="Auto-flip after audio"
+          description={
+            settings.autoPlayReview
+              ? "Reveal the meaning automatically once the term finishes playing."
+              : "Requires Auto-play term to be on."
+          }
+          value={settings.autoFlipAfterSpeak}
+          disabled={!settings.autoPlayReview}
+          onChange={(v) => updateSettings({ autoFlipAfterSpeak: v })}
+        />
       </section>
 
       <section className="card space-y-3">
@@ -140,3 +130,50 @@ const SAMPLE_PHRASES: Record<string, string> = {
   spanish: "Hola, esto es una prueba de pronunciación.",
   french: "Bonjour, ceci est un test de prononciation.",
 };
+
+function ToggleRow({
+  label,
+  description,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  description: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label
+      className={[
+        "flex items-center justify-between gap-3",
+        disabled ? "opacity-60" : "",
+      ].join(" ")}
+    >
+      <span>
+        <span className="block text-sm font-medium">{label}</span>
+        <span className="block text-xs text-slate-500">{description}</span>
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={value}
+        disabled={disabled}
+        onClick={() => onChange(!value)}
+        className={[
+          "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition",
+          value ? "bg-slate-900" : "bg-slate-300",
+          disabled ? "cursor-not-allowed" : "",
+        ].join(" ")}
+      >
+        <span
+          className={[
+            "inline-block h-5 w-5 transform rounded-full bg-white shadow transition",
+            value ? "translate-x-6" : "translate-x-1",
+          ].join(" ")}
+        />
+      </button>
+    </label>
+  );
+}
