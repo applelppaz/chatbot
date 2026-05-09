@@ -27,11 +27,13 @@ export interface GeminiResponse {
 }
 
 export function getApiKey(): string {
-  const key = process.env.GEMINI_API_KEY;
+  // Netlify reserves GEMINI_API_KEY for its built-in AI Gateway, which silently
+  // overrides any user-set value with a JWT. Use a non-colliding name instead.
+  const key = process.env.VOCAB_GEMINI_KEY;
   if (!key) {
     throw new HttpError(
       500,
-      "GEMINI_API_KEY is not configured on the Netlify site.",
+      "VOCAB_GEMINI_KEY is not configured on the Netlify site.",
     );
   }
   return key;
