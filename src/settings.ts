@@ -5,6 +5,7 @@ const STORAGE_KEY = "vocab-app-settings";
 
 const DEFAULTS: AppSettings = {
   autoPlayReview: false,
+  autoFlipAfterSpeak: false,
   speechRate: 0.9,
 };
 
@@ -19,6 +20,10 @@ function read(): AppSettings {
         typeof parsed.autoPlayReview === "boolean"
           ? parsed.autoPlayReview
           : DEFAULTS.autoPlayReview,
+      autoFlipAfterSpeak:
+        typeof parsed.autoFlipAfterSpeak === "boolean"
+          ? parsed.autoFlipAfterSpeak
+          : DEFAULTS.autoFlipAfterSpeak,
       speechRate:
         typeof parsed.speechRate === "number" &&
         parsed.speechRate >= 0.3 &&

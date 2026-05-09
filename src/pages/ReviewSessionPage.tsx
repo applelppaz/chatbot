@@ -40,13 +40,26 @@ export function ReviewSessionPage() {
   }, [language]);
 
   // Auto-play the term whenever a new card surfaces (if enabled in Settings).
+  // If auto-flip-after-speak is also on, reveal the answer when the utterance
+  // finishes — but only if we're still on the same card.
   useEffect(() => {
     if (!settings.autoPlayReview) return;
     if (!queue || queue.length === 0) return;
     if (index >= queue.length) return;
     const card = queue[index];
-    speak(card.term, card.language);
-  }, [queue, index, settings.autoPlayReview]);
+    const cardId = card.id;
+    speak(card.term, card.language, {
+      onEnd: () => {
+        if (!settings.autoFlipAfterSpeak) return;
+        // Only flip if we haven't navigated away from this card.
+        setRevealed((prev) => {
+          if (prev) return prev;
+          if (queue[index]?.id !== cardId) return prev;
+          return true;
+        });
+      },
+    });
+  }, [queue, index, settings.autoPlayReview, settings.autoFlipAfterSpeak]);
 
   if (!queue) {
     return <p className="py-12 text-center text-slate-400">Loading…</p>;
