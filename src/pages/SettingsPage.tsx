@@ -3,9 +3,13 @@ import { LANGUAGES, LANGUAGE_ORDER } from "../languages";
 import { listWords } from "../db";
 import { isSpeechSupported, speak } from "../speech";
 import { useSettings } from "../settings";
+import { exportWordsToXlsx } from "../export";
 
 export function SettingsPage() {
   const [counts, setCounts] = useState<Record<string, number> | null>(null);
+  const [total, setTotal] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [settings, updateSettings] = useSettings();
 
   useEffect(() => {
@@ -15,10 +19,28 @@ export function SettingsPage() {
         c[w.language] = (c[w.language] ?? 0) + 1;
       }
       setCounts(c);
+      setTotal(all.length);
     });
   }, []);
 
   const speechOk = isSpeechSupported();
+
+  async function handleExport() {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const all = await listWords();
+      if (all.length === 0) {
+        setExportError("Word bank is empty — nothing to export.");
+        return;
+      }
+      await exportWordsToXlsx(all);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Export failed.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -44,6 +66,26 @@ export function SettingsPage() {
             </li>
           </ul>
         )}
+        <button
+          type="button"
+          className="btn-secondary w-full"
+          onClick={handleExport}
+          disabled={exporting || total === 0}
+        >
+          {exporting
+            ? "Preparing file…"
+            : total === 0
+              ? "Nothing to export yet"
+              : `Export ${total} word${total === 1 ? "" : "s"} to Excel (.xlsx)`}
+        </button>
+        {exportError && (
+          <p className="text-sm text-rose-700">{exportError}</p>
+        )}
+        <p className="text-xs text-slate-500">
+          Downloads an .xlsx file with one row per word: Language, Term, Pinyin
+          (for Chinese), Japanese, Example, Example (JA), Part of speech, Added.
+          Opens in Excel, Numbers, Google Sheets, and LibreOffice.
+        </p>
       </section>
 
       <section className="card space-y-3">
