@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { dueWords, putWord } from "../db";
 import { applyGrade } from "../srs";
 import { speak } from "../speech";
+import { useSettings } from "../settings";
 import { LanguageBadge } from "../components/LanguageBadge";
 import { PlayButton } from "../components/PlayButton";
 import type { ReviewGrade, VocabularyWord } from "../types";
@@ -16,6 +17,7 @@ interface SessionStats {
 
 export function ReviewSessionPage() {
   const navigate = useNavigate();
+  const [settings] = useSettings();
   const [queue, setQueue] = useState<VocabularyWord[] | null>(null);
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
@@ -32,6 +34,15 @@ export function ReviewSessionPage() {
       setQueue(shuffled);
     });
   }, []);
+
+  // Auto-play the term whenever a new card surfaces (if enabled in Settings).
+  useEffect(() => {
+    if (!settings.autoPlayReview) return;
+    if (!queue || queue.length === 0) return;
+    if (index >= queue.length) return;
+    const card = queue[index];
+    speak(card.term, card.language);
+  }, [queue, index, settings.autoPlayReview]);
 
   if (!queue) {
     return <p className="py-12 text-center text-slate-400">Loading…</p>;

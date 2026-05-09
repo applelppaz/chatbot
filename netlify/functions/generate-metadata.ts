@@ -26,6 +26,9 @@ interface MetadataResult {
   pinyin: string | null;
   exampleSentence: string;
   exampleSentenceJa: string;
+  lemma: string | null;
+  partOfSpeech: string | null;
+  inflectionNote: string | null;
 }
 
 const RESPONSE_SCHEMA = {
@@ -35,11 +38,16 @@ const RESPONSE_SCHEMA = {
     pinyin: { type: "string", nullable: true },
     exampleSentence: { type: "string" },
     exampleSentenceJa: { type: "string" },
+    lemma: { type: "string", nullable: true },
+    partOfSpeech: { type: "string", nullable: true },
+    inflectionNote: { type: "string", nullable: true },
   },
   required: [
     "japaneseTranslation",
     "exampleSentence",
     "exampleSentenceJa",
+    "lemma",
+    "partOfSpeech",
   ],
 };
 
@@ -52,10 +60,13 @@ function buildPrompt(term: string, language: Language): string {
   return [
     `You are a vocabulary tutor.`,
     `The user is studying ${langName} and their native language is Japanese.`,
-    `For the ${langName} term: "${term}"`,
+    `Input ${langName} term (may contain a typo or be inflected/conjugated): "${term}"`,
     `Return STRICT JSON matching the schema, with:`,
-    `- japaneseTranslation: a natural, concise Japanese translation (one or two senses joined by 「・」 if needed).`,
-    `- exampleSentence: ONE natural ${langName} sentence (8–18 words) that uses "${term}" in context.`,
+    `- lemma: the dictionary citation form. For verbs: infinitive (or base form). For nouns: singular. For adjectives: masculine singular. If the input itself is already a citation form, lemma === input. If the input is a misspelling, lemma is the most plausible intended word. If you cannot map it to any real ${langName} word, set lemma to null.`,
+    `- partOfSpeech: one short tag in English: "noun", "verb", "adjective", "adverb", "pronoun", "preposition", "conjunction", "interjection", "phrase", "idiom", "other".`,
+    `- inflectionNote: a SHORT English description of how the input differs from the lemma, e.g. "past tense of 'eat'", "plural of 'apple'", "feminine singular of 'beau'". null if input === lemma. null if lemma is null.`,
+    `- japaneseTranslation: a natural, concise Japanese translation of the LEMMA (one or two senses joined by 「・」 if needed). If lemma is null, translate the input as best you can.`,
+    `- exampleSentence: ONE natural ${langName} sentence (8–18 words) that uses the LEMMA (or the input if no lemma) in context.`,
     `- exampleSentenceJa: a natural Japanese translation of that example sentence (not a literal gloss).`,
     pinyinClause,
     `Do not add explanations or extra fields.`,
@@ -77,6 +88,9 @@ function parseMetadata(raw: string, language: Language): MetadataResult {
   const ex = obj.exampleSentence;
   const exJa = obj.exampleSentenceJa;
   const pinyinRaw = obj.pinyin;
+  const lemmaRaw = obj.lemma;
+  const posRaw = obj.partOfSpeech;
+  const inflRaw = obj.inflectionNote;
   if (
     typeof ja !== "string" ||
     typeof ex !== "string" ||
@@ -88,11 +102,20 @@ function parseMetadata(raw: string, language: Language): MetadataResult {
     language === "chinese" && typeof pinyinRaw === "string" && pinyinRaw.trim()
       ? pinyinRaw.trim()
       : null;
+  const lemma =
+    typeof lemmaRaw === "string" && lemmaRaw.trim() ? lemmaRaw.trim() : null;
+  const partOfSpeech =
+    typeof posRaw === "string" && posRaw.trim() ? posRaw.trim() : null;
+  const inflectionNote =
+    typeof inflRaw === "string" && inflRaw.trim() ? inflRaw.trim() : null;
   return {
     japaneseTranslation: ja.trim(),
     pinyin,
     exampleSentence: ex.trim(),
     exampleSentenceJa: exJa.trim(),
+    lemma,
+    partOfSpeech,
+    inflectionNote,
   };
 }
 

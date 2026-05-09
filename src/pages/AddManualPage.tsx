@@ -8,16 +8,24 @@ import { putWord, termExists } from "../db";
 import { newWordSRS } from "../srs";
 import type { Language, VocabularyWord, WordMetadata } from "../types";
 
+type SaveAs = "input" | "lemma";
+
 export function AddManualPage() {
   const navigate = useNavigate();
   const [language, setLanguage] = useState<Language>("english");
   const [term, setTerm] = useState("");
   const [preview, setPreview] = useState<WordMetadata | null>(null);
+  const [saveAs, setSaveAs] = useState<SaveAs>("lemma");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState(false);
 
   const trimmedTerm = term.trim();
+  const lemmaSuggestion =
+    preview?.lemma && preview.lemma.toLowerCase() !== trimmedTerm.toLowerCase()
+      ? preview.lemma
+      : null;
+  const termToSave = lemmaSuggestion && saveAs === "lemma" ? lemmaSuggestion : trimmedTerm;
 
   async function handleGenerate() {
     if (!trimmedTerm) return;
@@ -43,15 +51,23 @@ export function AddManualPage() {
 
   async function handleSave() {
     if (!preview) return;
+    const finalTerm = termToSave;
+    if (await termExists(finalTerm, language)) {
+      setDuplicate(true);
+      return;
+    }
     const now = Date.now();
     const word: VocabularyWord = {
       id: crypto.randomUUID(),
-      term: trimmedTerm,
+      term: finalTerm,
       language,
       pinyin: preview.pinyin,
       japaneseTranslation: preview.japaneseTranslation,
       exampleSentence: preview.exampleSentence,
       exampleSentenceJa: preview.exampleSentenceJa,
+      lemma: preview.lemma,
+      partOfSpeech: preview.partOfSpeech,
+      inflectionNote: saveAs === "lemma" ? null : preview.inflectionNote,
       dateAdded: now,
       ...newWordSRS(now),
     };
@@ -104,14 +120,40 @@ export function AddManualPage() {
 
       {preview && (
         <section className="card space-y-3">
+          {lemmaSuggestion && (
+            <div className="space-y-2 rounded-xl bg-amber-50 p-3 ring-1 ring-amber-200">
+              <p className="text-sm text-amber-800">
+                Looks like an inflected form. Save as:
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <SaveAsButton
+                  active={saveAs === "lemma"}
+                  label={lemmaSuggestion}
+                  sublabel="dictionary form"
+                  onClick={() => setSaveAs("lemma")}
+                />
+                <SaveAsButton
+                  active={saveAs === "input"}
+                  label={trimmedTerm}
+                  sublabel={preview.inflectionNote ?? "as typed"}
+                  onClick={() => setSaveAs("input")}
+                />
+              </div>
+            </div>
+          )}
           <header className="flex items-center justify-between">
-            <div>
-              <div className="text-2xl font-semibold">{trimmedTerm}</div>
+            <div className="min-w-0">
+              <div className="truncate text-2xl font-semibold">{termToSave}</div>
               {preview.pinyin && (
                 <div className="text-sm text-slate-500">{preview.pinyin}</div>
               )}
+              {preview.partOfSpeech && (
+                <div className="mt-1 text-xs uppercase tracking-wide text-slate-500">
+                  {preview.partOfSpeech}
+                </div>
+              )}
             </div>
-            <PlayButton text={trimmedTerm} language={language} />
+            <PlayButton text={termToSave} language={language} />
           </header>
           <Field label="Japanese" value={preview.japaneseTranslation} />
           <Field
@@ -126,6 +168,41 @@ export function AddManualPage() {
         </section>
       )}
     </div>
+  );
+}
+
+function SaveAsButton({
+  active,
+  label,
+  sublabel,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  sublabel: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "rounded-lg px-3 py-2 text-left ring-1 transition",
+        active
+          ? "bg-amber-600 text-white ring-amber-600"
+          : "bg-white text-amber-900 ring-amber-300 hover:bg-amber-100",
+      ].join(" ")}
+    >
+      <div className="truncate font-medium">{label}</div>
+      <div
+        className={[
+          "truncate text-xs",
+          active ? "text-amber-100" : "text-amber-700",
+        ].join(" ")}
+      >
+        {sublabel}
+      </div>
+    </button>
   );
 }
 

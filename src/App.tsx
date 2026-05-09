@@ -6,6 +6,7 @@ import { AddImagePage } from "./pages/AddImagePage";
 import { WordDetailPage } from "./pages/WordDetailPage";
 import { ReviewHomePage } from "./pages/ReviewHomePage";
 import { ReviewSessionPage } from "./pages/ReviewSessionPage";
+import { LookupPage } from "./pages/LookupPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="/add/image" element={<AddImagePage />} />
         <Route path="/review" element={<ReviewHomePage />} />
         <Route path="/review/session" element={<ReviewSessionPage />} />
+        <Route path="/lookup" element={<LookupPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/words" replace />} />
       </Routes>

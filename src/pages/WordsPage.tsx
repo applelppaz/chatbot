@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { LANGUAGES, LANGUAGE_ORDER } from "../languages";
 import { listWords } from "../db";
+import { fuzzyScore } from "../fuzzy";
 import type { Language, VocabularyWord } from "../types";
 import { LanguageBadge } from "../components/LanguageBadge";
 
 type Filter = "all" | Language;
+const FUZZY_THRESHOLD = 0.55;
 
 export function WordsPage() {
   const navigate = useNavigate();
@@ -19,16 +21,25 @@ export function WordsPage() {
 
   const filtered = useMemo(() => {
     if (!words) return [];
-    const q = query.trim().toLowerCase();
-    return words.filter((w) => {
-      if (filter !== "all" && w.language !== filter) return false;
-      if (!q) return true;
-      return (
-        w.term.toLowerCase().includes(q) ||
-        w.japaneseTranslation.toLowerCase().includes(q) ||
-        (w.pinyin?.toLowerCase().includes(q) ?? false)
-      );
-    });
+    const q = query.trim();
+    const inLanguage = (w: VocabularyWord) =>
+      filter === "all" || w.language === filter;
+    if (!q) return words.filter(inLanguage);
+    // Fuzzy ranking across term, lemma, JP translation, pinyin.
+    const scored = words
+      .filter(inLanguage)
+      .map((w) => ({
+        word: w,
+        score: fuzzyScore(q, [
+          w.term,
+          w.lemma ?? null,
+          w.japaneseTranslation,
+          w.pinyin ?? null,
+        ]),
+      }))
+      .filter((r) => r.score >= FUZZY_THRESHOLD)
+      .sort((a, b) => b.score - a.score);
+    return scored.map((r) => r.word);
   }, [words, filter, query]);
 
   return (

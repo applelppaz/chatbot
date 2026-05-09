@@ -2,19 +2,25 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { LANGUAGES } from "../languages";
 import { LanguagePicker } from "../components/LanguagePicker";
-import { extractWordsFromImage, generateMetadata } from "../api";
+import { extractItemsFromImage, generateMetadata } from "../api";
 import { putWords, termExists } from "../db";
 import { newWordSRS } from "../srs";
-import type { Language, VocabularyWord } from "../types";
+import type { ExtractedItem, Language, VocabularyWord } from "../types";
 
 type Phase = "pick" | "extracting" | "review" | "importing" | "done";
+type IncludeMode = "both" | "words" | "phrases";
+
+function itemKey(item: ExtractedItem): string {
+  return `${item.kind}::${item.text.toLowerCase()}`;
+}
 
 export function AddImagePage() {
   const navigate = useNavigate();
   const [language, setLanguage] = useState<Language>("english");
+  const [includeMode, setIncludeMode] = useState<IncludeMode>("both");
   const [phase, setPhase] = useState<Phase>("pick");
   const [error, setError] = useState<string | null>(null);
-  const [extracted, setExtracted] = useState<string[]>([]);
+  const [extracted, setExtracted] = useState<ExtractedItem[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [progress, setProgress] = useState({ done: 0, total: 0, failed: 0 });
 
@@ -22,18 +28,18 @@ export function AddImagePage() {
     setPhase("extracting");
     setError(null);
     try {
-      const words = await extractWordsFromImage(file, language);
-      const dedup: string[] = [];
+      const items = await extractItemsFromImage(file, language, includeMode);
+      const dedup: ExtractedItem[] = [];
       const seen = new Set<string>();
-      for (const w of words) {
-        const key = w.toLowerCase();
-        if (!seen.has(key)) {
-          seen.add(key);
-          dedup.push(w);
+      for (const it of items) {
+        const k = itemKey(it);
+        if (!seen.has(k)) {
+          seen.add(k);
+          dedup.push(it);
         }
       }
       setExtracted(dedup);
-      setSelected(new Set(dedup));
+      setSelected(new Set(dedup.map(itemKey)));
       setPhase(dedup.length ? "review" : "done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "OCR failed.");
@@ -41,45 +47,48 @@ export function AddImagePage() {
     }
   }
 
-  function toggle(word: string) {
+  function toggle(item: ExtractedItem) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(word)) next.delete(word);
-      else next.add(word);
+      const k = itemKey(item);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
       return next;
     });
   }
 
   async function handleImport() {
-    const words = extracted.filter((w) => selected.has(w));
-    if (!words.length) return;
+    const items = extracted.filter((it) => selected.has(itemKey(it)));
+    if (!items.length) return;
     setPhase("importing");
-    setProgress({ done: 0, total: words.length, failed: 0 });
+    setProgress({ done: 0, total: items.length, failed: 0 });
 
     const results: VocabularyWord[] = [];
     let failed = 0;
 
-    // Run with a small concurrency cap.
     const CONCURRENCY = 4;
     let cursor = 0;
     async function worker() {
-      while (cursor < words.length) {
+      while (cursor < items.length) {
         const idx = cursor++;
-        const term = words[idx];
+        const item = items[idx];
         try {
-          if (await termExists(term, language)) {
-            failed += 0; // not really a failure — skip silently
+          if (await termExists(item.text, language)) {
+            // already in bank — skip silently
           } else {
-            const meta = await generateMetadata(term, language);
+            const meta = await generateMetadata(item.text, language);
             const now = Date.now();
             results.push({
               id: crypto.randomUUID(),
-              term,
+              term: item.text,
               language,
               pinyin: meta.pinyin,
               japaneseTranslation: meta.japaneseTranslation,
               exampleSentence: meta.exampleSentence,
               exampleSentenceJa: meta.exampleSentenceJa,
+              lemma: meta.lemma,
+              partOfSpeech: meta.partOfSpeech ?? (item.kind === "phrase" ? "phrase" : null),
+              inflectionNote: meta.inflectionNote,
               dateAdded: now,
               ...newWordSRS(now),
             });
@@ -93,7 +102,7 @@ export function AddImagePage() {
     }
 
     await Promise.all(
-      Array.from({ length: Math.min(CONCURRENCY, words.length) }, worker),
+      Array.from({ length: Math.min(CONCURRENCY, items.length) }, worker),
     );
 
     if (results.length) await putWords(results);
@@ -110,17 +119,42 @@ export function AddImagePage() {
       </header>
 
       {phase !== "importing" && phase !== "done" && (
-        <section className="space-y-2">
-          <label className="label">Language</label>
-          <LanguagePicker value={language} onChange={setLanguage} />
-        </section>
+        <>
+          <section className="space-y-2">
+            <label className="label">Language</label>
+            <LanguagePicker value={language} onChange={setLanguage} />
+          </section>
+          <section className="space-y-2">
+            <label className="label">Extract</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(["both", "words", "phrases"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setIncludeMode(m)}
+                  className={[
+                    "rounded-xl px-3 py-2 text-sm font-medium ring-1 transition",
+                    includeMode === m
+                      ? "bg-slate-900 text-white ring-slate-900"
+                      : "bg-white text-slate-700 ring-slate-200",
+                  ].join(" ")}
+                >
+                  {m === "both"
+                    ? "Words + phrases"
+                    : m === "words"
+                      ? "Words only"
+                      : "Phrases only"}
+                </button>
+              ))}
+            </div>
+          </section>
+        </>
       )}
 
       {phase === "pick" && (
         <section className="card space-y-3">
           <p className="text-sm text-slate-600">
-            Take a photo or upload an image. Gemini will extract every{" "}
-            {LANGUAGES[language].label} word it sees.
+            Take a photo or upload an image. Gemini reads the {LANGUAGES[language].label} text, joins words split across lines, and lists everything it found so you can pick what to keep.
           </p>
           <label className="btn-primary w-full cursor-pointer">
             Choose image / take photo
@@ -154,7 +188,7 @@ export function AddImagePage() {
             <div className="flex gap-2">
               <button
                 className="btn-ghost text-sm"
-                onClick={() => setSelected(new Set(extracted))}
+                onClick={() => setSelected(new Set(extracted.map(itemKey)))}
               >
                 All
               </button>
@@ -167,19 +201,32 @@ export function AddImagePage() {
             </div>
           </div>
           <ul className="overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200">
-            {extracted.map((w) => (
-              <li key={w}>
-                <label className="flex cursor-pointer items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0">
-                  <input
-                    type="checkbox"
-                    className="h-5 w-5 accent-slate-900"
-                    checked={selected.has(w)}
-                    onChange={() => toggle(w)}
-                  />
-                  <span className="text-base">{w}</span>
-                </label>
-              </li>
-            ))}
+            {extracted.map((it) => {
+              const k = itemKey(it);
+              return (
+                <li key={k}>
+                  <label className="flex cursor-pointer items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0">
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5 accent-slate-900"
+                      checked={selected.has(k)}
+                      onChange={() => toggle(it)}
+                    />
+                    <span className="flex-1 text-base">{it.text}</span>
+                    <span
+                      className={[
+                        "chip text-xs",
+                        it.kind === "phrase"
+                          ? "bg-violet-100 text-violet-800"
+                          : "bg-slate-100 text-slate-700",
+                      ].join(" ")}
+                    >
+                      {it.kind}
+                    </span>
+                  </label>
+                </li>
+              );
+            })}
           </ul>
           <button
             className="btn-primary w-full"

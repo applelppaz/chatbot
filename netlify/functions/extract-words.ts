@@ -16,35 +16,69 @@ const LANGUAGE_NAMES: Record<Language, string> = {
   french: "French",
 };
 
+type IncludeMode = "words" | "phrases" | "both";
+
 interface RequestBody {
   imageBase64?: string;
   mimeType?: string;
   language?: Language;
+  include?: IncludeMode;
+}
+
+interface ExtractedItemDTO {
+  text: string;
+  kind: "word" | "phrase";
 }
 
 const RESPONSE_SCHEMA = {
   type: "object",
   properties: {
-    words: { type: "array", items: { type: "string" } },
+    items: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          text: { type: "string" },
+          kind: { type: "string", enum: ["word", "phrase"] },
+        },
+        required: ["text", "kind"],
+      },
+    },
   },
-  required: ["words"],
+  required: ["items"],
 };
 
-function buildPrompt(language: Language): string {
+function buildPrompt(language: Language, include: IncludeMode): string {
   const langName = LANGUAGE_NAMES[language];
+  const wantWords = include !== "phrases";
+  const wantPhrases = include !== "words";
+  const targets: string[] = [];
+  if (wantWords) {
+    targets.push(
+      `single ${langName} VOCABULARY WORDS (single-word lemmas, dictionary citation form)`,
+    );
+  }
+  if (wantPhrases) {
+    targets.push(
+      `notable multi-word PHRASES, set expressions, idioms, or fixed collocations (kept in their natural form, NOT lemmatized into individual pieces)`,
+    );
+  }
   return [
     `You are an OCR + lemmatizer for vocabulary study.`,
-    `Examine the image and extract every distinct ${langName} vocabulary word that is visible.`,
+    `Examine the image and extract ${targets.join(" AND ")}.`,
     `Rules:`,
-    `- Return each word in its dictionary citation form (lemma): infinitive verbs, singular nouns, masculine/base adjective form.`,
-    `- Lower-case English/Spanish/French words. Keep Chinese characters as-is.`,
-    `- Skip proper nouns, numbers, punctuation, page numbers, and words from other languages.`,
-    `- Deduplicate. Preserve reading order.`,
-    `- Return strict JSON: { "words": ["...", "..."] }. No commentary.`,
+    `- Reading order: top-to-bottom, then left-to-right.`,
+    `- LINE-WRAP HANDLING: when a word is split across two lines (often with a trailing hyphen, e.g. "appli-" then "cation"), join the two halves into one word ("application"). Do NOT include the broken halves.`,
+    `- WORDS: return each in its dictionary citation form (lemma) — infinitive verbs, singular nouns, masculine/base adjective form. Set kind="word".`,
+    `- PHRASES: return as they appear in the text (or lightly normalized for whitespace), preserving article and any obligatory function words. Set kind="phrase". A phrase is 2+ tokens. Examples: "make up one's mind", "à propos de", "ponerse las pilas", "马马虎虎".`,
+    `- Lower-case English / Spanish / French. Keep Chinese characters as-is.`,
+    `- Skip proper nouns, numbers, page numbers, punctuation-only tokens, and any text not in ${langName}.`,
+    `- Deduplicate (case-insensitive). Preserve reading order.`,
+    `- Return strict JSON: { "items": [ { "text": "...", "kind": "word" | "phrase" } ] }. No commentary.`,
   ].join("\n");
 }
 
-function parseWords(raw: string): string[] {
+function parseItems(raw: string): ExtractedItemDTO[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -54,15 +88,25 @@ function parseWords(raw: string): string[] {
   if (
     typeof parsed !== "object" ||
     parsed === null ||
-    !Array.isArray((parsed as { words?: unknown }).words)
+    !Array.isArray((parsed as { items?: unknown }).items)
   ) {
-    throw new HttpError(502, "Gemini response did not contain a 'words' array.");
+    throw new HttpError(502, "Gemini response did not contain an 'items' array.");
   }
-  const words = (parsed as { words: unknown[] }).words
-    .filter((w): w is string => typeof w === "string")
-    .map((w) => w.trim())
-    .filter((w) => w.length > 0);
-  return Array.from(new Set(words));
+  const seen = new Set<string>();
+  const out: ExtractedItemDTO[] = [];
+  for (const raw of (parsed as { items: unknown[] }).items) {
+    if (typeof raw !== "object" || raw === null) continue;
+    const r = raw as { text?: unknown; kind?: unknown };
+    if (typeof r.text !== "string") continue;
+    const text = r.text.trim();
+    if (!text) continue;
+    const kind = r.kind === "phrase" ? "phrase" : "word";
+    const key = `${kind}::${text.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ text, kind });
+  }
+  return out;
 }
 
 export default async (req: Request, _ctx: Context): Promise<Response> => {
@@ -72,6 +116,10 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
   try {
     const body = (await req.json()) as RequestBody;
     const { imageBase64, mimeType, language } = body;
+    const include: IncludeMode =
+      body.include === "words" || body.include === "phrases"
+        ? body.include
+        : "both";
     if (!imageBase64 || typeof imageBase64 !== "string") {
       throw new HttpError(400, "Missing 'imageBase64'.");
     }
@@ -92,7 +140,7 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
         {
           role: "user",
           parts: [
-            { text: buildPrompt(language) },
+            { text: buildPrompt(language, include) },
             { inlineData: { mimeType, data: imageBase64 } },
           ],
         },
@@ -105,8 +153,8 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
     };
 
     const raw = await callGemini(geminiBody);
-    const words = parseWords(raw);
-    return jsonResponse(200, { words });
+    const items = parseItems(raw);
+    return jsonResponse(200, { items });
   } catch (err) {
     return errorResponse(err);
   }

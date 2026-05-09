@@ -1,4 +1,5 @@
 import { LANGUAGES } from "./languages";
+import { getSettings } from "./settings";
 import type { Language } from "./types";
 
 let cachedVoices: SpeechSynthesisVoice[] = [];
@@ -39,7 +40,7 @@ export function speak(text: string, language: Language): void {
   utterance.lang = LANGUAGES[language].ttsLocale;
   const voice = pickVoice(utterance.lang);
   if (voice) utterance.voice = voice;
-  utterance.rate = 0.9;
+  utterance.rate = getSettings().speechRate;
   utterance.pitch = 1;
   synth.speak(utterance);
 }

@@ -17,7 +17,7 @@ To exercise the Netlify Functions locally, install the Netlify CLI and run:
 
 ```bash
 npm install -g netlify-cli
-echo "GEMINI_API_KEY=your_key_here" > .env
+echo "VOCAB_GEMINI_KEY=your_key_here" > .env
 netlify dev          # serves the SPA + functions at http://localhost:8888
 ```
 
@@ -32,8 +32,10 @@ netlify dev          # serves the SPA + functions at http://localhost:8888
    - Publish directory: `dist`
    - Functions directory: `netlify/functions`
 4. **Site settings → Environment variables → Add a variable**:
-   - Key: `GEMINI_API_KEY`
+   - Key: `VOCAB_GEMINI_KEY`
    - Value: *your Gemini key*
+
+   > **Note:** the env var is named `VOCAB_GEMINI_KEY`, not `GEMINI_API_KEY`. Netlify reserves `GEMINI_API_KEY` for its built-in AI Gateway and silently overrides any user value with a JWT, which Google rejects.
 5. Trigger a deploy. The site URL Netlify gives you (e.g. `https://your-site.netlify.app`) is the URL you open on your iPhone.
 
 For a friendlier URL, **Domain management → Options → Edit site name** lets you change the subdomain.
