@@ -3,8 +3,10 @@ import {
   callGemini,
   errorResponse,
   HttpError,
+  isKeySlot,
   jsonResponse,
   type GeminiRequestBody,
+  type KeySlot,
 } from "./_gemini.js";
 
 type Language = "english" | "chinese" | "spanish" | "french";
@@ -23,6 +25,7 @@ interface RequestBody {
   mimeType?: string;
   language?: Language;
   include?: IncludeMode;
+  keySlot?: KeySlot;
 }
 
 interface ExtractedItemDTO {
@@ -152,7 +155,8 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
       },
     };
 
-    const raw = await callGemini(geminiBody);
+    const slot = isKeySlot(body.keySlot) ? body.keySlot : 1;
+    const raw = await callGemini(geminiBody, slot);
     const items = parseItems(raw);
     return jsonResponse(200, { items });
   } catch (err) {

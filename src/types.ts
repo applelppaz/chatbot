@@ -50,9 +50,16 @@ export interface FormsLookup {
 
 export type ReviewGrade = "again" | "hard" | "good" | "easy";
 
+export type GeminiKeySlot = 1 | 2 | 3;
+
 export interface AppSettings {
   autoPlayReview: boolean;
   autoFlipAfterSpeak: boolean;
   speechRate: number;
+  geminiKeySlot: GeminiKeySlot;
+}
+
+export interface KeyStatus {
+  slots: Record<GeminiKeySlot, boolean>;
 }
 

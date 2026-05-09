@@ -3,8 +3,10 @@ import {
   callGemini,
   errorResponse,
   HttpError,
+  isKeySlot,
   jsonResponse,
   type GeminiRequestBody,
+  type KeySlot,
 } from "./_gemini.js";
 
 type Language = "english" | "chinese" | "spanish" | "french";
@@ -19,6 +21,7 @@ const LANGUAGE_NAMES: Record<Language, string> = {
 interface RequestBody {
   term?: string;
   language?: Language;
+  keySlot?: KeySlot;
 }
 
 interface FormGroupDTO {
@@ -202,7 +205,8 @@ export default async (req: Request, _ctx: Context): Promise<Response> => {
       },
     };
 
-    const raw = await callGemini(geminiBody);
+    const slot = isKeySlot(body.keySlot) ? body.keySlot : 1;
+    const raw = await callGemini(geminiBody, slot);
     return jsonResponse(200, parseForms(raw, language));
   } catch (err) {
     return errorResponse(err);

@@ -1,6 +1,8 @@
+import { getSettings } from "./settings";
 import type {
   ExtractedItem,
   FormsLookup,
+  KeyStatus,
   Language,
   WordMetadata,
 } from "./types";
@@ -9,11 +11,18 @@ interface ApiError {
   error: string;
 }
 
-async function postJSON<T>(path: string, body: unknown): Promise<T> {
+async function postJSON<T>(
+  path: string,
+  body: Record<string, unknown>,
+  options: { withKeySlot?: boolean } = { withKeySlot: true },
+): Promise<T> {
+  const payload = options.withKeySlot
+    ? { ...body, keySlot: getSettings().geminiKeySlot }
+    : body;
   const res = await fetch(path, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     let detail = `${res.status} ${res.statusText}`;
@@ -59,6 +68,14 @@ export async function lookupForms(
   language: Language,
 ): Promise<FormsLookup> {
   return postJSON<FormsLookup>("/api/lookup-forms", { term, language });
+}
+
+export async function getKeyStatus(): Promise<KeyStatus> {
+  const res = await fetch("/api/key-status", { method: "POST" });
+  if (!res.ok) {
+    throw new Error(`Key status check failed (${res.status}).`);
+  }
+  return (await res.json()) as KeyStatus;
 }
 
 async function readAndResizeImage(

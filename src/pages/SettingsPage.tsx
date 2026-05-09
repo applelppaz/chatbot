@@ -1,26 +1,49 @@
 import { useEffect, useState } from "react";
 import { LANGUAGES, LANGUAGE_ORDER } from "../languages";
-import { listWords } from "../db";
+import { listWords, putWords, termExists } from "../db";
 import { isSpeechSupported, speak } from "../speech";
 import { useSettings } from "../settings";
 import { exportWordsToXlsx } from "../export";
+import { parseXlsxFile, type ImportResult, type ImportRow } from "../import";
+import { newWordSRS } from "../srs";
+import { getKeyStatus } from "../api";
+import type { GeminiKeySlot, KeyStatus, VocabularyWord } from "../types";
+
+interface ImportPreview extends ImportResult {
+  duplicates: ImportRow[];
+  newRows: ImportRow[];
+}
 
 export function SettingsPage() {
   const [counts, setCounts] = useState<Record<string, number> | null>(null);
   const [total, setTotal] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importDone, setImportDone] = useState<{ inserted: number } | null>(null);
+  const [keyStatus, setKeyStatus] = useState<KeyStatus | null>(null);
   const [settings, updateSettings] = useSettings();
 
-  useEffect(() => {
-    listWords().then((all) => {
+  function refreshCounts() {
+    return listWords().then((all) => {
       const c: Record<string, number> = {};
-      for (const w of all) {
-        c[w.language] = (c[w.language] ?? 0) + 1;
-      }
+      for (const w of all) c[w.language] = (c[w.language] ?? 0) + 1;
       setCounts(c);
       setTotal(all.length);
     });
+  }
+
+  useEffect(() => {
+    refreshCounts();
+    getKeyStatus()
+      .then(setKeyStatus)
+      .catch(() => {
+        // If the status check fails (network, etc.), assume only slot 1 is
+        // available so the picker still renders sensibly.
+        setKeyStatus({ slots: { 1: true, 2: false, 3: false } });
+      });
   }, []);
 
   const speechOk = isSpeechSupported();
@@ -39,6 +62,59 @@ export function SettingsPage() {
       setExportError(err instanceof Error ? err.message : "Export failed.");
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handleFileChosen(file: File) {
+    setImportError(null);
+    setImportDone(null);
+    setImportPreview(null);
+    try {
+      const result = await parseXlsxFile(file);
+      // Partition valid rows into duplicates vs new (against the current bank).
+      const duplicates: ImportRow[] = [];
+      const newRows: ImportRow[] = [];
+      for (const r of result.valid) {
+        if (await termExists(r.term, r.language)) duplicates.push(r);
+        else newRows.push(r);
+      }
+      setImportPreview({ ...result, duplicates, newRows });
+    } catch (err) {
+      setImportError(
+        err instanceof Error ? err.message : "Could not read file.",
+      );
+    }
+  }
+
+  async function handleConfirmImport() {
+    if (!importPreview) return;
+    setImporting(true);
+    setImportError(null);
+    try {
+      const now = Date.now();
+      const words: VocabularyWord[] = importPreview.newRows.map((r, i) => ({
+        id: crypto.randomUUID(),
+        term: r.term,
+        language: r.language,
+        pinyin: r.pinyin,
+        japaneseTranslation: r.japaneseTranslation,
+        exampleSentence: r.exampleSentence,
+        exampleSentenceJa: r.exampleSentenceJa,
+        partOfSpeech: r.partOfSpeech,
+        lemma: null,
+        inflectionNote: null,
+        // Stagger dateAdded by one ms so list order is preserved.
+        dateAdded: now + i,
+        ...newWordSRS(now + i),
+      }));
+      await putWords(words);
+      setImportDone({ inserted: words.length });
+      setImportPreview(null);
+      await refreshCounts();
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Import failed.");
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -86,6 +162,131 @@ export function SettingsPage() {
           (for Chinese), Japanese, Example, Example (JA), Part of speech, Added.
           Opens in Excel, Numbers, Google Sheets, and LibreOffice.
         </p>
+
+        <div className="border-t border-slate-200 pt-3 space-y-2">
+          <label className="btn-secondary w-full cursor-pointer">
+            Import from Excel (.xlsx)
+            <input
+              type="file"
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleFileChosen(f);
+                e.target.value = "";
+              }}
+            />
+          </label>
+          <p className="text-xs text-slate-500">
+            Reads any .xlsx with at least Language, Term, Japanese, and Example
+            columns (header names are matched case-insensitively in English or
+            Japanese — e.g. 言語 / 単語 / 意味 / 例文 also work).
+          </p>
+          {importError && (
+            <p className="text-sm text-rose-700">{importError}</p>
+          )}
+          {importDone && (
+            <p className="text-sm text-emerald-700">
+              Imported {importDone.inserted} word
+              {importDone.inserted === 1 ? "" : "s"}.
+            </p>
+          )}
+        </div>
+
+        {importPreview && (
+          <div className="border-t border-slate-200 pt-3 space-y-3">
+            <h3 className="font-medium">Preview</h3>
+            <ul className="text-sm">
+              <li className="flex justify-between py-1">
+                <span>New</span>
+                <span className="font-medium text-emerald-700">
+                  {importPreview.newRows.length}
+                </span>
+              </li>
+              <li className="flex justify-between py-1">
+                <span>Duplicate (will be skipped)</span>
+                <span className="text-slate-500">
+                  {importPreview.duplicates.length}
+                </span>
+              </li>
+              <li className="flex justify-between py-1">
+                <span>Invalid (will be skipped)</span>
+                <span
+                  className={
+                    importPreview.errors.length > 0
+                      ? "text-rose-700"
+                      : "text-slate-500"
+                  }
+                >
+                  {importPreview.errors.length}
+                </span>
+              </li>
+            </ul>
+
+            {importPreview.errors.length > 0 && (
+              <details className="rounded-lg bg-rose-50 p-2 text-xs text-rose-800 ring-1 ring-rose-200">
+                <summary className="cursor-pointer font-medium">
+                  Show {importPreview.errors.length} error
+                  {importPreview.errors.length === 1 ? "" : "s"}
+                </summary>
+                <ul className="mt-2 space-y-1">
+                  {importPreview.errors.slice(0, 50).map((e) => (
+                    <li key={`${e.row}-${e.message}`}>
+                      Row {e.row}: {e.message}
+                    </li>
+                  ))}
+                  {importPreview.errors.length > 50 && (
+                    <li>… and {importPreview.errors.length - 50} more</li>
+                  )}
+                </ul>
+              </details>
+            )}
+
+            {importPreview.newRows.length > 0 && (
+              <details className="rounded-lg bg-slate-50 p-2 text-xs text-slate-800 ring-1 ring-slate-200">
+                <summary className="cursor-pointer font-medium">
+                  Show first {Math.min(20, importPreview.newRows.length)} new
+                  word{importPreview.newRows.length === 1 ? "" : "s"}
+                </summary>
+                <ul className="mt-2 space-y-1">
+                  {importPreview.newRows.slice(0, 20).map((r) => (
+                    <li
+                      key={`${r.language}-${r.term}`}
+                      className="flex items-baseline justify-between gap-2"
+                    >
+                      <span className="font-medium">{r.term}</span>
+                      <span className="text-slate-500">
+                        {LANGUAGES[r.language].shortLabel} ·{" "}
+                        {r.japaneseTranslation}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                className="btn-secondary flex-1"
+                disabled={importing}
+                onClick={() => setImportPreview(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn-primary flex-1"
+                disabled={importing || importPreview.newRows.length === 0}
+                onClick={handleConfirmImport}
+              >
+                {importing
+                  ? "Importing…"
+                  : importPreview.newRows.length === 0
+                    ? "Nothing new"
+                    : `Import ${importPreview.newRows.length}`}
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="card space-y-3">
@@ -152,6 +353,52 @@ export function SettingsPage() {
             Your browser does not support the Web Speech API.
           </p>
         )}
+      </section>
+
+      <section className="card space-y-3">
+        <h2 className="font-medium">API key</h2>
+        <p className="text-xs text-slate-500">
+          Switch which Gemini API key the server uses. Each key has its own rate
+          limit, so rotating manually lets you keep working when one gets
+          throttled.
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          {([1, 2, 3] as GeminiKeySlot[]).map((slot) => {
+            const configured = keyStatus?.slots[slot] ?? slot === 1;
+            const active = settings.geminiKeySlot === slot;
+            return (
+              <button
+                key={slot}
+                type="button"
+                disabled={!configured}
+                onClick={() => updateSettings({ geminiKeySlot: slot })}
+                className={[
+                  "rounded-xl px-3 py-3 text-sm font-medium ring-1 transition",
+                  active && configured
+                    ? "bg-slate-900 text-white ring-slate-900"
+                    : configured
+                      ? "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50"
+                      : "cursor-not-allowed bg-slate-50 text-slate-400 ring-slate-200",
+                ].join(" ")}
+              >
+                <div className="text-base">Key {slot}</div>
+                <div className="text-[11px] opacity-80">
+                  {configured ? (active ? "Active" : "Available") : "Not set"}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        {keyStatus &&
+          !keyStatus.slots[2] &&
+          !keyStatus.slots[3] && (
+            <p className="text-xs text-amber-700">
+              Slots 2 and 3 are not yet configured. Add{" "}
+              <code className="font-mono">VOCAB_GEMINI_KEY_2</code> /{" "}
+              <code className="font-mono">VOCAB_GEMINI_KEY_3</code> as Netlify
+              environment variables to enable them.
+            </p>
+          )}
       </section>
 
       <section className="card space-y-2">
