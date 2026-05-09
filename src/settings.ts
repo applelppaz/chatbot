@@ -7,6 +7,7 @@ const DEFAULTS: AppSettings = {
   autoPlayReview: false,
   autoFlipAfterSpeak: false,
   speechRate: 0.9,
+  geminiKeySlot: 1,
 };
 
 function read(): AppSettings {
@@ -30,6 +31,12 @@ function read(): AppSettings {
         parsed.speechRate <= 1.5
           ? parsed.speechRate
           : DEFAULTS.speechRate,
+      geminiKeySlot:
+        parsed.geminiKeySlot === 1 ||
+        parsed.geminiKeySlot === 2 ||
+        parsed.geminiKeySlot === 3
+          ? parsed.geminiKeySlot
+          : DEFAULTS.geminiKeySlot,
     };
   } catch {
     return DEFAULTS;

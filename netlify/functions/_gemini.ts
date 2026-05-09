@@ -26,14 +26,35 @@ export interface GeminiResponse {
   promptFeedback?: { blockReason?: string };
 }
 
-export function getApiKey(): string {
+export type KeySlot = 1 | 2 | 3;
+
+const KEY_ENV_VARS: Record<KeySlot, string> = {
+  1: "VOCAB_GEMINI_KEY",
+  2: "VOCAB_GEMINI_KEY_2",
+  3: "VOCAB_GEMINI_KEY_3",
+};
+
+export function isKeySlot(value: unknown): value is KeySlot {
+  return value === 1 || value === 2 || value === 3;
+}
+
+export function getConfiguredSlots(): Record<KeySlot, boolean> {
+  return {
+    1: !!process.env[KEY_ENV_VARS[1]],
+    2: !!process.env[KEY_ENV_VARS[2]],
+    3: !!process.env[KEY_ENV_VARS[3]],
+  };
+}
+
+export function getApiKey(slot: KeySlot = 1): string {
   // Netlify reserves GEMINI_API_KEY for its built-in AI Gateway, which silently
-  // overrides any user-set value with a JWT. Use a non-colliding name instead.
-  const key = process.env.VOCAB_GEMINI_KEY;
+  // overrides any user-set value with a JWT. Use non-colliding names instead.
+  const envName = KEY_ENV_VARS[slot];
+  const key = process.env[envName];
   if (!key) {
     throw new HttpError(
-      500,
-      "VOCAB_GEMINI_KEY is not configured on the Netlify site.",
+      503,
+      `Key slot ${slot} (${envName}) is not configured on the Netlify site.`,
     );
   }
   return key;
@@ -48,8 +69,11 @@ export class HttpError extends Error {
   }
 }
 
-export async function callGemini(body: GeminiRequestBody): Promise<string> {
-  const url = `${GEMINI_ENDPOINT}?key=${encodeURIComponent(getApiKey())}`;
+export async function callGemini(
+  body: GeminiRequestBody,
+  slot: KeySlot = 1,
+): Promise<string> {
+  const url = `${GEMINI_ENDPOINT}?key=${encodeURIComponent(getApiKey(slot))}`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
