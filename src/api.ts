@@ -1,4 +1,9 @@
-import type { Language, WordMetadata } from "./types";
+import type {
+  ExtractedItem,
+  FormsLookup,
+  Language,
+  WordMetadata,
+} from "./types";
 
 interface ApiError {
   error: string;
@@ -30,18 +35,30 @@ export async function generateMetadata(
   return postJSON<WordMetadata>("/api/generate-metadata", { term, language });
 }
 
-export async function extractWordsFromImage(
+export async function extractItemsFromImage(
   file: File,
   language: Language,
-): Promise<string[]> {
+  include: "words" | "phrases" | "both" = "both",
+): Promise<ExtractedItem[]> {
   const { dataUrl, mimeType } = await readAndResizeImage(file, 1280);
   const base64 = dataUrl.split(",")[1] ?? "";
-  const result = await postJSON<{ words: string[] }>("/api/extract-words", {
-    imageBase64: base64,
-    mimeType,
-    language,
-  });
-  return result.words;
+  const result = await postJSON<{ items: ExtractedItem[] }>(
+    "/api/extract-words",
+    {
+      imageBase64: base64,
+      mimeType,
+      language,
+      include,
+    },
+  );
+  return result.items;
+}
+
+export async function lookupForms(
+  term: string,
+  language: Language,
+): Promise<FormsLookup> {
+  return postJSON<FormsLookup>("/api/lookup-forms", { term, language });
 }
 
 async function readAndResizeImage(

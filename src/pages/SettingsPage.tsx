@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { LANGUAGES, LANGUAGE_ORDER } from "../languages";
 import { listWords } from "../db";
 import { isSpeechSupported, speak } from "../speech";
+import { useSettings } from "../settings";
 
 export function SettingsPage() {
   const [counts, setCounts] = useState<Record<string, number> | null>(null);
+  const [settings, updateSettings] = useSettings();
 
   useEffect(() => {
     listWords().then((all) => {
@@ -45,20 +47,68 @@ export function SettingsPage() {
       </section>
 
       <section className="card space-y-3">
+        <h2 className="font-medium">Review</h2>
+        <label className="flex items-center justify-between gap-3">
+          <span>
+            <span className="block text-sm font-medium">Auto-play term</span>
+            <span className="block text-xs text-slate-500">
+              Speak each card aloud as it appears in a review session.
+            </span>
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={settings.autoPlayReview}
+            onClick={() =>
+              updateSettings({ autoPlayReview: !settings.autoPlayReview })
+            }
+            className={[
+              "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition",
+              settings.autoPlayReview ? "bg-slate-900" : "bg-slate-300",
+            ].join(" ")}
+          >
+            <span
+              className={[
+                "inline-block h-5 w-5 transform rounded-full bg-white shadow transition",
+                settings.autoPlayReview ? "translate-x-6" : "translate-x-1",
+              ].join(" ")}
+            />
+          </button>
+        </label>
+      </section>
+
+      <section className="card space-y-3">
         <h2 className="font-medium">Pronunciation</h2>
         {speechOk ? (
           <>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium">Speech rate</span>
+                <span className="text-slate-500">
+                  {settings.speechRate.toFixed(2)}×
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0.5}
+                max={1.3}
+                step={0.05}
+                value={settings.speechRate}
+                onChange={(e) =>
+                  updateSettings({ speechRate: Number(e.target.value) })
+                }
+                className="w-full accent-slate-900"
+              />
+            </div>
             <p className="text-sm text-slate-600">
-              Test the speech synthesis voice for each language.
+              Test the voice for each language.
             </p>
             <div className="grid grid-cols-2 gap-2">
               {LANGUAGE_ORDER.map((code) => (
                 <button
                   key={code}
                   className="btn-secondary"
-                  onClick={() =>
-                    speak(SAMPLE_PHRASES[code], code)
-                  }
+                  onClick={() => speak(SAMPLE_PHRASES[code], code)}
                 >
                   Test {LANGUAGES[code].label}
                 </button>
