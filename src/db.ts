@@ -60,18 +60,32 @@ export async function deleteWord(id: string): Promise<void> {
   await db.delete("words", id);
 }
 
-export async function dueWords(now: number = Date.now()): Promise<VocabularyWord[]> {
+export async function dueWords(
+  language?: VocabularyWord["language"] | null,
+  now: number = Date.now(),
+): Promise<VocabularyWord[]> {
   const db = await getDB();
   const range = IDBKeyRange.upperBound(now);
   const due = await db.getAllFromIndex("words", "byNextReviewAt", range);
+  const filtered = language ? due.filter((w) => w.language === language) : due;
   // Oldest-due first.
-  return due.sort((a, b) => a.nextReviewAt - b.nextReviewAt);
+  return filtered.sort((a, b) => a.nextReviewAt - b.nextReviewAt);
 }
 
-export async function dueCount(now: number = Date.now()): Promise<number> {
+export async function dueCountsByLanguage(
+  now: number = Date.now(),
+): Promise<{ all: number; byLanguage: Record<VocabularyWord["language"], number> }> {
   const db = await getDB();
   const range = IDBKeyRange.upperBound(now);
-  return db.countFromIndex("words", "byNextReviewAt", range);
+  const due = await db.getAllFromIndex("words", "byNextReviewAt", range);
+  const byLanguage: Record<VocabularyWord["language"], number> = {
+    english: 0,
+    chinese: 0,
+    spanish: 0,
+    french: 0,
+  };
+  for (const w of due) byLanguage[w.language] += 1;
+  return { all: due.length, byLanguage };
 }
 
 export async function termExists(

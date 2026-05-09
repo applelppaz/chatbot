@@ -39,7 +39,7 @@ export function AddImagePage() {
         }
       }
       setExtracted(dedup);
-      setSelected(new Set(dedup.map(itemKey)));
+      setSelected(new Set());
       setPhase(dedup.length ? "review" : "done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "OCR failed.");
