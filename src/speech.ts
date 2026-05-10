@@ -81,6 +81,12 @@ interface SpeakOptions {
   onEnd?: () => void;
 }
 
+// Tracks the utterance currently submitted to the synth so a later speak() can
+// invalidate the previous utterance's onEnd before calling synth.cancel()
+// (which would otherwise fire the previous utterance's `end` event and trigger
+// stale onEnd callbacks — e.g. premature card flips in Review).
+let activeUtterance: SpeechSynthesisUtterance | null = null;
+
 export function speak(
   text: string,
   language: Language,
@@ -91,27 +97,41 @@ export function speak(
     return;
   }
   const synth = window.speechSynthesis;
+  // Mark the previous utterance as superseded BEFORE we cancel — its onEnd
+  // handler will see this and bail.
+  activeUtterance = null;
   synth.cancel();
+
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = LANGUAGES[language].ttsLocale;
   const voice = pickVoice(utterance.lang);
   if (voice) utterance.voice = voice;
   utterance.rate = getSettings().speechRate;
   utterance.pitch = 1;
+
   if (options.onEnd) {
     let fired = false;
     const fire = () => {
       if (fired) return;
       fired = true;
+      // Only fire if we're still the active utterance — i.e. we weren't
+      // canceled by a subsequent speak() call.
+      if (activeUtterance !== utterance) return;
+      activeUtterance = null;
       options.onEnd?.();
     };
-    utterance.addEventListener("end", fire);
-    utterance.addEventListener("error", fire);
+    // Single-assignment listeners so Safari's occasional "end + error" double
+    // dispatch doesn't double-fire.
+    utterance.onend = fire;
+    utterance.onerror = fire;
   }
+
+  activeUtterance = utterance;
   synth.speak(utterance);
 }
 
 export function stopSpeaking(): void {
   if (!isSpeechSupported()) return;
+  activeUtterance = null;
   window.speechSynthesis.cancel();
 }

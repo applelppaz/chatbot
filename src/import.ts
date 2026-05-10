@@ -10,6 +10,7 @@ export interface ImportRow {
   exampleSentence: string;
   exampleSentenceJa: string;
   partOfSpeech: string | null;
+  note: string | null;
 }
 
 export interface ImportRowError {
@@ -30,6 +31,7 @@ type ColumnKey =
   | "exampleSentence"
   | "exampleSentenceJa"
   | "partOfSpeech"
+  | "note"
   | "added";
 
 // Header label aliases (case-insensitive, trimmed). Comprehensive enough to
@@ -74,6 +76,7 @@ const HEADER_ALIASES: Record<ColumnKey, string[]> = {
     "part-of-speech",
     "品詞",
   ],
+  note: ["note", "notes", "memo", "メモ", "備考", "ノート"],
   added: ["added", "date added", "登録日", "追加日"],
 };
 
@@ -206,6 +209,7 @@ export async function parseXlsxFile(file: File): Promise<ImportResult> {
 
     const pinyinRaw = getCell(row, "pinyin");
     const partOfSpeechRaw = getCell(row, "partOfSpeech");
+    const noteRaw = getCell(row, "note");
 
     valid.push({
       language,
@@ -215,6 +219,7 @@ export async function parseXlsxFile(file: File): Promise<ImportResult> {
       exampleSentence,
       exampleSentenceJa: getCell(row, "exampleSentenceJa"),
       partOfSpeech: partOfSpeechRaw || null,
+      note: noteRaw || null,
     });
   }
 

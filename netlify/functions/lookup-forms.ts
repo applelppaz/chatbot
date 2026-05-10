@@ -142,6 +142,12 @@ function parseForms(raw: string, language: Language): FormsResult {
   if (typeof obj.lemma !== "string" || typeof obj.japaneseGloss !== "string") {
     throw new HttpError(502, "Gemini response was missing required fields.");
   }
+  if (!obj.lemma.trim() || !obj.japaneseGloss.trim()) {
+    throw new HttpError(
+      502,
+      "Gemini returned an empty lemma or gloss. Please try again.",
+    );
+  }
   const groupsRaw = Array.isArray(obj.groups) ? obj.groups : [];
   const groups: FormGroupDTO[] = [];
   for (const g of groupsRaw) {
