@@ -47,6 +47,11 @@ const COLUMNS: Column<VocabularyWord>[] = [
     cell: (w) => ({ value: w.partOfSpeech ?? "" }),
   },
   {
+    header: { value: "Note", ...HEADER_STYLE },
+    width: 30,
+    cell: (w) => ({ value: w.note ?? "", wrap: true }),
+  },
+  {
     header: { value: "Added", ...HEADER_STYLE },
     width: 12,
     cell: (w) => ({ value: new Date(w.dateAdded), format: "yyyy-mm-dd" }),

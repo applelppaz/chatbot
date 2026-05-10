@@ -4,7 +4,6 @@ const items = [
   { to: "/words", label: "Words", icon: WordsIcon },
   { to: "/add", label: "Add", icon: PlusIcon },
   { to: "/review", label: "Review", icon: ReviewIcon },
-  { to: "/lookup", label: "Forms", icon: BookIcon },
   { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
@@ -55,23 +54,6 @@ function ReviewIcon(props: React.SVGProps<SVGSVGElement>) {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} {...props}>
       <path d="M21 12a9 9 0 1 1-3-6.7" strokeLinecap="round" />
       <path d="M21 4v5h-5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function BookIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} {...props}>
-      <path
-        d="M4 4h6a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H4z"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M20 4h-6a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h7z"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
     </svg>
   );
 }

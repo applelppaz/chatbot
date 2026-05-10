@@ -12,6 +12,10 @@ export interface VocabularyWord {
   lemma?: string | null;
   partOfSpeech?: string | null;
   inflectionNote?: string | null;
+  // Free-text mnemonic / note added by the user (v3+).
+  note?: string | null;
+  // Timestamp of the most recent grade (used for streak; v3+).
+  lastReviewedAt?: number | null;
   dateAdded: number;
   // SM-2 spaced repetition fields
   easinessFactor: number;

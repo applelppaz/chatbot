@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { dueWords, putWord } from "../db";
 import { isLanguage, LANGUAGES } from "../languages";
 import { applyGrade } from "../srs";
 import { speak } from "../speech";
 import { useSettings } from "../settings";
+import { shuffle } from "../util";
+import { recordReviewToday } from "../stats";
 import { LanguageBadge } from "../components/LanguageBadge";
 import { PlayButton } from "../components/PlayButton";
 import type { Language, ReviewGrade, VocabularyWord } from "../types";
@@ -31,11 +33,14 @@ export function ReviewSessionPage() {
     good: 0,
     easy: 0,
   });
+  // Tracks which card is currently visible so a stale onEnd callback (fired by
+  // a synth.cancel triggered by the next card's speak()) can bail instead of
+  // flipping the wrong card.
+  const currentCardIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     dueWords(language).then((words) => {
-      const shuffled = [...words].sort(() => Math.random() - 0.5);
-      setQueue(shuffled);
+      setQueue(shuffle(words));
     });
   }, [language]);
 
@@ -43,20 +48,16 @@ export function ReviewSessionPage() {
   // If auto-flip-after-speak is also on, reveal the answer when the utterance
   // finishes — but only if we're still on the same card.
   useEffect(() => {
-    if (!settings.autoPlayReview) return;
     if (!queue || queue.length === 0) return;
     if (index >= queue.length) return;
     const card = queue[index];
-    const cardId = card.id;
+    currentCardIdRef.current = card.id;
+    if (!settings.autoPlayReview) return;
     speak(card.term, card.language, {
       onEnd: () => {
         if (!settings.autoFlipAfterSpeak) return;
-        // Only flip if we haven't navigated away from this card.
-        setRevealed((prev) => {
-          if (prev) return prev;
-          if (queue[index]?.id !== cardId) return prev;
-          return true;
-        });
+        if (currentCardIdRef.current !== card.id) return;
+        setRevealed((prev) => prev || true);
       },
     });
   }, [queue, index, settings.autoPlayReview, settings.autoFlipAfterSpeak]);
@@ -106,9 +107,15 @@ export function ReviewSessionPage() {
   const card = queue[index];
 
   async function handleGrade(grade: ReviewGrade) {
-    const updated = applyGrade(card, grade);
-    const next: VocabularyWord = { ...card, ...updated };
+    const now = Date.now();
+    const updated = applyGrade(card, grade, now);
+    const next: VocabularyWord = {
+      ...card,
+      ...updated,
+      lastReviewedAt: now,
+    };
     await putWord(next);
+    recordReviewToday();
     setStats((s) => ({ ...s, [grade]: s[grade] + 1 }));
     setIndex((i) => i + 1);
     setRevealed(false);
@@ -165,6 +172,14 @@ export function ReviewSessionPage() {
                 {card.exampleSentenceJa}
               </div>
             </div>
+            {card.note && (
+              <div className="rounded-lg bg-amber-50 p-3 text-left text-sm text-amber-900 ring-1 ring-amber-200">
+                <span className="block text-[10px] font-medium uppercase tracking-wide text-amber-700">
+                  Note
+                </span>
+                <span className="whitespace-pre-wrap">{card.note}</span>
+              </div>
+            )}
           </div>
         ) : (
           <button

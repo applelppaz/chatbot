@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { deleteWord, getWord } from "../db";
-import { LANGUAGES } from "../languages";
+import { deleteWord, getWord, putWord } from "../db";
 import { LanguageBadge } from "../components/LanguageBadge";
 import { PlayButton } from "../components/PlayButton";
 import { FormsView } from "../components/FormsView";
-import { lookupForms } from "../api";
-import type { FormsLookup, VocabularyWord } from "../types";
+import { EditWordSheet } from "../components/EditWordSheet";
+import { generateMetadata, lookupForms } from "../api";
+import type { FormsLookup, VocabularyWord, WordMetadata } from "../types";
 
 export function WordDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +15,10 @@ export function WordDetailPage() {
   const [forms, setForms] = useState<FormsLookup | null>(null);
   const [formsLoading, setFormsLoading] = useState(false);
   const [formsError, setFormsError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [regenLoading, setRegenLoading] = useState(false);
+  const [regenError, setRegenError] = useState<string | null>(null);
+  const [regenPreview, setRegenPreview] = useState<WordMetadata | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -34,6 +38,45 @@ export function WordDetailPage() {
     } finally {
       setFormsLoading(false);
     }
+  }
+
+  async function handleSaveEdit(updated: VocabularyWord) {
+    await putWord(updated);
+    setWord(updated);
+    setEditing(false);
+  }
+
+  async function handleRegenerate() {
+    if (!word || regenLoading) return;
+    setRegenLoading(true);
+    setRegenError(null);
+    setRegenPreview(null);
+    try {
+      const meta = await generateMetadata(word.term, word.language);
+      setRegenPreview(meta);
+    } catch (err) {
+      setRegenError(err instanceof Error ? err.message : "Re-generate failed.");
+    } finally {
+      setRegenLoading(false);
+    }
+  }
+
+  async function applyRegenerate() {
+    if (!word || !regenPreview) return;
+    const updated: VocabularyWord = {
+      ...word,
+      pinyin: regenPreview.pinyin,
+      japaneseTranslation: regenPreview.japaneseTranslation,
+      exampleSentence: regenPreview.exampleSentence,
+      exampleSentenceJa: regenPreview.exampleSentenceJa,
+      partOfSpeech: regenPreview.partOfSpeech ?? word.partOfSpeech ?? null,
+      inflectionNote: regenPreview.inflectionNote ?? word.inflectionNote ?? null,
+      lemma: regenPreview.lemma ?? word.lemma ?? null,
+      // SRS state and note are intentionally preserved.
+    };
+    await putWord(updated);
+    setWord(updated);
+    setRegenPreview(null);
   }
 
   if (word === undefined) {
@@ -111,27 +154,20 @@ export function WordDetailPage() {
         <p className="text-sm text-slate-500">{word.exampleSentenceJa}</p>
       </section>
 
-      <section className="card space-y-1 text-sm text-slate-600">
-        <div className="flex justify-between">
-          <span>Language</span>
-          <span>{LANGUAGES[word.language].label}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Added</span>
-          <span>{new Date(word.dateAdded).toLocaleDateString()}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Next review</span>
-          <span>{new Date(word.nextReviewAt).toLocaleDateString()}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Reps</span>
-          <span>
-            {word.repetitions} (interval {word.intervalDays}d, EF{" "}
-            {word.easinessFactor.toFixed(2)})
-          </span>
-        </div>
-      </section>
+      {word.note && (
+        <section className="card space-y-1">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
+            Note
+          </h2>
+          <p className="whitespace-pre-wrap text-base">{word.note}</p>
+        </section>
+      )}
+
+      <p className="px-1 text-xs text-slate-500">
+        Next review {new Date(word.nextReviewAt).toLocaleDateString()}
+        {" · "}Added {new Date(word.dateAdded).toLocaleDateString()}
+        {" · "}Rep #{word.repetitions}
+      </p>
 
       <section className="space-y-2">
         {!forms && !formsLoading && (
@@ -150,12 +186,109 @@ export function WordDetailPage() {
         )}
       </section>
 
-      <button
-        className="btn-secondary w-full text-rose-600"
-        onClick={handleDelete}
+      <section className="space-y-2">
+        {!regenPreview && (
+          <button
+            className="btn-secondary w-full"
+            onClick={handleRegenerate}
+            disabled={regenLoading}
+          >
+            {regenLoading ? "Re-generating…" : "Re-generate translation & example"}
+          </button>
+        )}
+        {regenError && <p className="text-sm text-rose-700">{regenError}</p>}
+        {regenPreview && (
+          <div className="card space-y-3">
+            <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
+              Replace with this?
+            </h2>
+            <Diff
+              label="Japanese"
+              before={word.japaneseTranslation}
+              after={regenPreview.japaneseTranslation}
+            />
+            <Diff
+              label="Example"
+              before={word.exampleSentence}
+              after={regenPreview.exampleSentence}
+            />
+            <Diff
+              label="Example (JA)"
+              before={word.exampleSentenceJa}
+              after={regenPreview.exampleSentenceJa}
+            />
+            {word.language === "chinese" && (
+              <Diff
+                label="Pinyin"
+                before={word.pinyin ?? ""}
+                after={regenPreview.pinyin ?? ""}
+              />
+            )}
+            <div className="flex gap-2">
+              <button
+                className="btn-secondary flex-1"
+                onClick={() => setRegenPreview(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn-primary flex-1"
+                onClick={applyRegenerate}
+              >
+                Replace
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <div className="flex gap-2">
+        <button className="btn-secondary flex-1" onClick={() => setEditing(true)}>
+          Edit
+        </button>
+        <button
+          className="btn-secondary flex-1 text-rose-600"
+          onClick={handleDelete}
+        >
+          Delete
+        </button>
+      </div>
+
+      {editing && (
+        <EditWordSheet
+          word={word}
+          onCancel={() => setEditing(false)}
+          onSave={handleSaveEdit}
+        />
+      )}
+    </div>
+  );
+}
+
+function Diff({
+  label,
+  before,
+  after,
+}: {
+  label: string;
+  before: string;
+  after: string;
+}) {
+  const changed = before.trim() !== after.trim();
+  return (
+    <div className="space-y-1">
+      <div className="label">{label}</div>
+      <div className="rounded-lg bg-slate-50 p-2 text-sm text-slate-500 line-through">
+        {before || "—"}
+      </div>
+      <div
+        className={[
+          "rounded-lg p-2 text-sm",
+          changed ? "bg-emerald-50 text-emerald-900" : "bg-slate-50 text-slate-500",
+        ].join(" ")}
       >
-        Delete word
-      </button>
+        {after || "—"}
+      </div>
     </div>
   );
 }

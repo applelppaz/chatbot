@@ -101,6 +101,12 @@ function parseMetadata(raw: string, language: Language): MetadataResult {
   ) {
     throw new HttpError(502, "Gemini response was missing required fields.");
   }
+  if (!ja.trim() || !ex.trim() || !exJa.trim()) {
+    throw new HttpError(
+      502,
+      "Gemini returned empty translation or example. Please try again.",
+    );
+  }
   const pinyin =
     language === "chinese" && typeof pinyinRaw === "string" && pinyinRaw.trim()
       ? pinyinRaw.trim()

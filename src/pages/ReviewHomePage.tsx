@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { dueCountsByLanguage, listWords } from "../db";
 import { LANGUAGES, LANGUAGE_ORDER } from "../languages";
+import { currentStreak } from "../stats";
 import type { Language } from "../types";
 
 type Filter = "all" | Language;
@@ -55,9 +56,31 @@ export function ReviewHomePage() {
     }
   }
 
+  const streak = currentStreak();
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Review</h1>
+
+      <section className="card grid grid-cols-2 gap-3 text-center">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-500">
+            Streak
+          </p>
+          <p className="mt-1 text-3xl font-semibold">
+            {streak}
+            <span className="ml-1 text-sm font-normal text-slate-500">
+              day{streak === 1 ? "" : "s"}
+            </span>
+          </p>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-500">
+            Total words
+          </p>
+          <p className="mt-1 text-3xl font-semibold">{stats.total}</p>
+        </div>
+      </section>
 
       <section className="space-y-2">
         <label className="label">Language</label>
