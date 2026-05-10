@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { LANGUAGES } from "../languages";
 import { LanguagePicker } from "../components/LanguagePicker";
@@ -19,6 +19,13 @@ export function AddManualPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState(false);
+  const termInputRef = useRef<HTMLInputElement>(null);
+
+  // Land on the page with the keyboard already up so consecutive adds are
+  // type-Generate-type without an extra tap.
+  useEffect(() => {
+    termInputRef.current?.focus();
+  }, []);
 
   const trimmedTerm = term.trim();
   const lemmaSuggestion =
@@ -94,13 +101,18 @@ export function AddManualPage() {
           Term
         </label>
         <input
+          ref={termInputRef}
           id="term"
           className="input"
           placeholder={LANGUAGES[language].inputPlaceholder}
           value={term}
           onChange={(e) => setTerm(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && trimmedTerm && !loading) handleGenerate();
+          }}
           autoCapitalize="off"
           autoCorrect="off"
+          autoFocus
         />
         <button
           type="button"
