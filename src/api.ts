@@ -4,7 +4,7 @@ import type {
   FormsLookup,
   KeyStatus,
   Language,
-  WordMetadata,
+  MultiWordMetadata,
 } from "./types";
 
 interface ApiError {
@@ -40,8 +40,13 @@ async function postJSON<T>(
 export async function generateMetadata(
   term: string,
   language: Language,
-): Promise<WordMetadata> {
-  return postJSON<WordMetadata>("/api/generate-metadata", { term, language });
+  options: { includeTranslations?: boolean } = {},
+): Promise<MultiWordMetadata> {
+  return postJSON<MultiWordMetadata>("/api/generate-metadata", {
+    term,
+    language,
+    includeTranslations: options.includeTranslations === true,
+  });
 }
 
 export async function extractItemsFromImage(

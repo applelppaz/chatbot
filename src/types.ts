@@ -34,6 +34,13 @@ export interface WordMetadata {
   inflectionNote: string | null;
 }
 
+// Primary metadata for the source language, plus optional per-language
+// translations of the same concept (returned when includeTranslations is set).
+// The source language key is intentionally absent from `translations`.
+export interface MultiWordMetadata extends WordMetadata {
+  translations?: Partial<Record<Language, WordMetadata>>;
+}
+
 export interface ExtractedItem {
   text: string;
   kind: "word" | "phrase";
@@ -61,6 +68,9 @@ export interface AppSettings {
   autoFlipAfterSpeak: boolean;
   speechRate: number;
   geminiKeySlot: GeminiKeySlot;
+  // Persists the language picked on the Add page so consecutive adds in the
+  // same language don't require re-selecting it on every visit.
+  lastUsedLanguage: Language;
 }
 
 export interface KeyStatus {
