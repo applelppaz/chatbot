@@ -1,12 +1,21 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { deleteWord, getWord, putWord } from "../db";
+import { deleteWord, getWord, putWord, termExists } from "../db";
 import { LanguageBadge } from "../components/LanguageBadge";
 import { PlayButton } from "../components/PlayButton";
 import { FormsView } from "../components/FormsView";
 import { EditWordSheet } from "../components/EditWordSheet";
+import { TranslationCard } from "../components/TranslationCard";
 import { generateMetadata, lookupForms } from "../api";
-import type { FormsLookup, VocabularyWord, WordMetadata } from "../types";
+import { newWordSRS } from "../srs";
+import { LANGUAGE_ORDER } from "../languages";
+import type {
+  FormsLookup,
+  Language,
+  MultiWordMetadata,
+  VocabularyWord,
+  WordMetadata,
+} from "../types";
 
 export function WordDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +28,16 @@ export function WordDetailPage() {
   const [regenLoading, setRegenLoading] = useState(false);
   const [regenError, setRegenError] = useState<string | null>(null);
   const [regenPreview, setRegenPreview] = useState<WordMetadata | null>(null);
+  // Cross-language translate-and-add flow (mirrors AddPage ManualMode).
+  const [xlateLoading, setXlateLoading] = useState(false);
+  const [xlateError, setXlateError] = useState<string | null>(null);
+  const [xlatePreview, setXlatePreview] = useState<MultiWordMetadata | null>(
+    null,
+  );
+  const [xlateSelected, setXlateSelected] = useState<Set<Language>>(new Set());
+  const [xlateSaved, setXlateSaved] = useState<Set<Language>>(new Set());
+  const [xlateExisting, setXlateExisting] = useState<Set<Language>>(new Set());
+  const [xlateBulkSaving, setXlateBulkSaving] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -77,6 +96,104 @@ export function WordDetailPage() {
     await putWord(updated);
     setWord(updated);
     setRegenPreview(null);
+  }
+
+  async function handleTranslateToOthers() {
+    if (!word || xlateLoading) return;
+    setXlateLoading(true);
+    setXlateError(null);
+    setXlatePreview(null);
+    setXlateSelected(new Set());
+    setXlateSaved(new Set());
+    setXlateExisting(new Set());
+    try {
+      // Use the lemma if we have one, else the saved term — same shape Gemini
+      // produced when the word was originally added.
+      const sourceTerm = word.lemma ?? word.term;
+      const meta = await generateMetadata(sourceTerm, word.language, {
+        includeTranslations: true,
+      });
+      setXlatePreview(meta);
+      const translations = meta.translations ?? {};
+      const existing = new Set<Language>();
+      const selectable = new Set<Language>();
+      await Promise.all(
+        (Object.entries(translations) as [Language, WordMetadata | undefined][]).map(
+          async ([lang, m]) => {
+            if (!m) return;
+            const targetTerm = (m.lemma ?? "").trim();
+            if (!targetTerm) return;
+            if (await termExists(targetTerm, lang)) existing.add(lang);
+            else selectable.add(lang);
+          },
+        ),
+      );
+      setXlateExisting(existing);
+      setXlateSelected(selectable);
+    } catch (err) {
+      setXlateError(
+        err instanceof Error ? err.message : "Translate failed.",
+      );
+    } finally {
+      setXlateLoading(false);
+    }
+  }
+
+  function toggleXlate(lang: Language) {
+    setXlateSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(lang)) next.delete(lang);
+      else next.add(lang);
+      return next;
+    });
+  }
+
+  async function saveXlate(lang: Language, meta: WordMetadata) {
+    const targetTerm = (meta.lemma ?? "").trim();
+    if (!targetTerm) return;
+    if (await termExists(targetTerm, lang)) {
+      setXlateExisting((prev) => new Set(prev).add(lang));
+      return;
+    }
+    const now = Date.now();
+    const w: VocabularyWord = {
+      id: crypto.randomUUID(),
+      term: targetTerm,
+      language: lang,
+      pinyin: meta.pinyin,
+      japaneseTranslation: meta.japaneseTranslation,
+      exampleSentence: meta.exampleSentence,
+      exampleSentenceJa: meta.exampleSentenceJa,
+      lemma: meta.lemma,
+      partOfSpeech: meta.partOfSpeech,
+      inflectionNote: null,
+      note: null,
+      dateAdded: now,
+      ...newWordSRS(now),
+    };
+    await putWord(w);
+    setXlateSaved((prev) => new Set(prev).add(lang));
+  }
+
+  async function saveAllXlate() {
+    if (!xlatePreview?.translations || !word) return;
+    setXlateBulkSaving(true);
+    try {
+      const targets = LANGUAGE_ORDER.filter(
+        (l) =>
+          l !== word.language &&
+          xlateSelected.has(l) &&
+          !xlateSaved.has(l) &&
+          !xlateExisting.has(l) &&
+          !!xlatePreview.translations?.[l],
+      );
+      for (const lang of targets) {
+        const meta = xlatePreview.translations[lang];
+        if (meta) await saveXlate(lang, meta);
+      }
+    } finally {
+      setXlateBulkSaving(false);
+    }
   }
 
   if (word === undefined) {
@@ -240,6 +357,76 @@ export function WordDetailPage() {
             </div>
           </div>
         )}
+      </section>
+
+      <section className="space-y-2">
+        {!xlatePreview && (
+          <button
+            className="btn-secondary w-full"
+            onClick={handleTranslateToOthers}
+            disabled={xlateLoading}
+          >
+            {xlateLoading
+              ? "Translating…"
+              : "Add to other languages"}
+          </button>
+        )}
+        {xlateError && <p className="text-sm text-rose-700">{xlateError}</p>}
+        {xlatePreview && (() => {
+          const otherLangs = LANGUAGE_ORDER.filter(
+            (l) => l !== word.language && !!xlatePreview.translations?.[l],
+          );
+          const pendingBulk = otherLangs.filter(
+            (l) =>
+              xlateSelected.has(l) &&
+              !xlateSaved.has(l) &&
+              !xlateExisting.has(l),
+          ).length;
+          if (otherLangs.length === 0) {
+            return (
+              <p className="text-sm text-slate-500">
+                No translations were returned.
+              </p>
+            );
+          }
+          return (
+            <>
+              <header className="flex items-center justify-between">
+                <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
+                  Translations
+                </h2>
+                <button
+                  type="button"
+                  className="text-xs text-slate-500 underline disabled:no-underline disabled:opacity-50"
+                  disabled={xlateBulkSaving || pendingBulk === 0}
+                  onClick={saveAllXlate}
+                >
+                  {xlateBulkSaving
+                    ? "Saving…"
+                    : pendingBulk === 0
+                      ? "Save all"
+                      : `Save all (${pendingBulk})`}
+                </button>
+              </header>
+              {otherLangs.map((lang) => {
+                const m = xlatePreview.translations?.[lang];
+                if (!m) return null;
+                return (
+                  <TranslationCard
+                    key={lang}
+                    language={lang}
+                    meta={m}
+                    selected={xlateSelected.has(lang)}
+                    saved={xlateSaved.has(lang)}
+                    duplicate={xlateExisting.has(lang)}
+                    onToggle={() => toggleXlate(lang)}
+                    onSave={() => saveXlate(lang, m)}
+                  />
+                );
+              })}
+            </>
+          );
+        })()}
       </section>
 
       <div className="flex gap-2">
