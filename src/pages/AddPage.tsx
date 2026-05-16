@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { LANGUAGES, LANGUAGE_ORDER } from "../languages";
+import { LanguageBadge } from "../components/LanguageBadge";
 import { LanguagePicker } from "../components/LanguagePicker";
 import { PlayButton } from "../components/PlayButton";
 import { TranslationCard } from "../components/TranslationCard";
 import { extractItemsFromImage, generateMetadata } from "../api";
-import { putWord, putWords, termExists } from "../db";
+import { getWordByTerm, putWord, putWords, termExists } from "../db";
 import { newWordSRS } from "../srs";
 import { useSettings } from "../settings";
 import type {
@@ -98,7 +99,14 @@ function ManualMode({ language }: { language: Language }) {
   const [saveAs, setSaveAs] = useState<SaveAs>("lemma");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [duplicate, setDuplicate] = useState(false);
+  // When the typed term already lives in this language's bank, capture the
+  // saved record so we can render it (memory-refresh) instead of just showing
+  // a warning. Duplicate registration is still blocked.
+  const [existingSourceWord, setExistingSourceWord] =
+    useState<VocabularyWord | null>(null);
+  // Tracks the word.id of the source after it's been saved during this
+  // session, so the primary "Save" button can flip to "View saved word".
+  const [savedSourceId, setSavedSourceId] = useState<string | null>(null);
   // Cross-language UI state
   const [selectedTranslations, setSelectedTranslations] = useState<
     Set<Language>
@@ -122,6 +130,8 @@ function ManualMode({ language }: { language: Language }) {
   // tied to the old language is no longer relevant).
   useEffect(() => {
     setPreview(null);
+    setExistingSourceWord(null);
+    setSavedSourceId(null);
     setSelectedTranslations(new Set());
     setSavedTranslations(new Set());
     setExistingTranslations(new Set());
@@ -140,14 +150,15 @@ function ManualMode({ language }: { language: Language }) {
     setLoading(true);
     setError(null);
     setPreview(null);
-    setDuplicate(false);
+    setExistingSourceWord(null);
+    setSavedSourceId(null);
     setSelectedTranslations(new Set());
     setSavedTranslations(new Set());
     setExistingTranslations(new Set());
     try {
-      const exists = await termExists(trimmedTerm, language);
-      if (exists) {
-        setDuplicate(true);
+      const existing = await getWordByTerm(trimmedTerm, language);
+      if (existing) {
+        setExistingSourceWord(existing);
         setLoading(false);
         return;
       }
@@ -158,7 +169,7 @@ function ManualMode({ language }: { language: Language }) {
       // Check duplicates in each target language up-front so cards can show
       // "Already in bank" and be excluded from Save all.
       const translations = meta.translations ?? {};
-      const existing = new Set<Language>();
+      const existingTrans = new Set<Language>();
       const selectable = new Set<Language>();
       await Promise.all(
         (Object.entries(translations) as [Language, WordMetadata | undefined][]).map(
@@ -166,12 +177,12 @@ function ManualMode({ language }: { language: Language }) {
             if (!m) return;
             const targetTerm = (m.lemma ?? "").trim();
             if (!targetTerm) return;
-            if (await termExists(targetTerm, lang)) existing.add(lang);
+            if (await termExists(targetTerm, lang)) existingTrans.add(lang);
             else selectable.add(lang);
           },
         ),
       );
-      setExistingTranslations(existing);
+      setExistingTranslations(existingTrans);
       // Default-tick the non-duplicate translations so "Save all" is one tap.
       setSelectedTranslations(selectable);
     } catch (err) {
@@ -181,12 +192,21 @@ function ManualMode({ language }: { language: Language }) {
     }
   }
 
-  async function handleSave() {
-    if (!preview) return;
+  // Save the source-language word. Returns the saved record (or the existing
+  // one if it had been saved earlier this session) so callers can navigate to
+  // it. Returns null if a duplicate was detected mid-flight.
+  async function saveSource(): Promise<VocabularyWord | null> {
+    if (!preview) return null;
+    if (savedSourceId) {
+      // Already saved this session — load from DB and return.
+      const existing = await getWordByTerm(termToSave, language);
+      return existing ?? null;
+    }
     const finalTerm = termToSave;
-    if (await termExists(finalTerm, language)) {
-      setDuplicate(true);
-      return;
+    const existing = await getWordByTerm(finalTerm, language);
+    if (existing) {
+      setExistingSourceWord(existing);
+      return null;
     }
     const now = Date.now();
     const trimmedNote = note.trim();
@@ -206,7 +226,13 @@ function ManualMode({ language }: { language: Language }) {
       ...newWordSRS(now),
     };
     await putWord(word);
-    navigate(`/words/${word.id}`, { replace: true });
+    setSavedSourceId(word.id);
+    return word;
+  }
+
+  async function handleSave() {
+    const saved = await saveSource();
+    if (saved) navigate(`/words/${saved.id}`, { replace: true });
   }
 
   function toggleTranslation(lang: Language) {
@@ -246,9 +272,16 @@ function ManualMode({ language }: { language: Language }) {
   }
 
   async function saveAllTranslations() {
-    if (!preview?.translations) return;
+    if (!preview) return;
     setSavingBulk(true);
     try {
+      // Save the source-language word first if it hasn't been saved yet.
+      // Without this, users who only ever click "Save all" would end up with
+      // the translations in their bank but NOT the original word they typed —
+      // the bug the user reported.
+      if (!savedSourceId) {
+        await saveSource();
+      }
       const targets = LANGUAGE_ORDER.filter(
         (l) =>
           l !== language &&
@@ -258,7 +291,7 @@ function ManualMode({ language }: { language: Language }) {
           !!preview.translations?.[l],
       );
       for (const lang of targets) {
-        const meta = preview.translations[lang];
+        const meta = preview.translations?.[lang];
         if (meta) await saveTranslation(lang, meta);
       }
     } finally {
@@ -271,12 +304,15 @@ function ManualMode({ language }: { language: Language }) {
         (l) => l !== language && !!preview.translations?.[l],
       )
     : [];
-  const pendingBulkCount = translationLanguages.filter(
+  const pendingTranslationCount = translationLanguages.filter(
     (l) =>
       selectedTranslations.has(l) &&
       !savedTranslations.has(l) &&
       !existingTranslations.has(l),
   ).length;
+  // "Save all" also commits the source language word when not yet saved.
+  const pendingBulkCount =
+    pendingTranslationCount + (savedSourceId ? 0 : 1);
 
   return (
     <div className="space-y-5">
@@ -306,15 +342,20 @@ function ManualMode({ language }: { language: Language }) {
         >
           {loading ? "Generating…" : "Generate"}
         </button>
-        {duplicate && (
-          <p className="text-sm text-amber-700">
-            You already have this word in your {LANGUAGES[language].label} list.
-          </p>
-        )}
         {error && <p className="text-sm text-rose-700">{error}</p>}
       </section>
 
-      {preview && (
+      {existingSourceWord && (
+        <section className="space-y-2">
+          <p className="text-sm text-amber-700">
+            You already have this word in your {LANGUAGES[language].label} list.
+            Showing the saved entry below — no need to register it again.
+          </p>
+          <ExistingWordCard word={existingSourceWord} />
+        </section>
+      )}
+
+      {preview && !existingSourceWord && (
         <section className="card space-y-3">
           {lemmaSuggestion && (
             <div className="space-y-2 rounded-xl bg-amber-50 p-3 ring-1 ring-amber-200">
@@ -359,34 +400,45 @@ function ManualMode({ language }: { language: Language }) {
           />
           <Field label="Example (JA)" value={preview.exampleSentenceJa} />
 
-          <div className="space-y-1">
-            {!showNote ? (
-              <button
-                type="button"
-                className="text-sm text-slate-500 underline"
-                onClick={() => setShowNote(true)}
-              >
-                + Add personal note (mnemonic)
-              </button>
-            ) : (
-              <>
-                <label className="label" htmlFor="note">
-                  Note (optional)
-                </label>
-                <textarea
-                  id="note"
-                  className="input min-h-[3.5rem]"
-                  placeholder='e.g. "sounds like…", "from chapter 3"'
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                />
-              </>
-            )}
-          </div>
+          {!savedSourceId && (
+            <div className="space-y-1">
+              {!showNote ? (
+                <button
+                  type="button"
+                  className="text-sm text-slate-500 underline"
+                  onClick={() => setShowNote(true)}
+                >
+                  + Add personal note (mnemonic)
+                </button>
+              ) : (
+                <>
+                  <label className="label" htmlFor="note">
+                    Note (optional)
+                  </label>
+                  <textarea
+                    id="note"
+                    className="input min-h-[3.5rem]"
+                    placeholder='e.g. "sounds like…", "from chapter 3"'
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                  />
+                </>
+              )}
+            </div>
+          )}
 
-          <button className="btn-primary w-full" onClick={handleSave}>
-            Save to word bank
-          </button>
+          {savedSourceId ? (
+            <Link
+              to={`/words/${savedSourceId}`}
+              className="btn-secondary w-full text-center"
+            >
+              Saved ✓ — view {LANGUAGES[language].label} word
+            </Link>
+          ) : (
+            <button className="btn-primary w-full" onClick={handleSave}>
+              Save to word bank
+            </button>
+          )}
         </section>
       )}
 
@@ -429,6 +481,51 @@ function ManualMode({ language }: { language: Language }) {
         </section>
       )}
     </div>
+  );
+}
+
+function ExistingWordCard({ word }: { word: VocabularyWord }) {
+  return (
+    <Link
+      to={`/words/${word.id}`}
+      className="card block space-y-2 transition active:bg-slate-50"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <LanguageBadge language={word.language} />
+            <span className="truncate text-xl font-semibold">{word.term}</span>
+          </div>
+          {word.pinyin && (
+            <div className="mt-1 text-sm text-slate-500">{word.pinyin}</div>
+          )}
+          {word.partOfSpeech && (
+            <div className="mt-1 text-xs uppercase tracking-wide text-slate-500">
+              {word.partOfSpeech}
+            </div>
+          )}
+          <div className="mt-1 text-base text-slate-800">
+            {word.japaneseTranslation}
+          </div>
+        </div>
+        <PlayButton text={word.term} language={word.language} />
+      </div>
+      <div className="rounded-lg bg-slate-50 p-2 text-sm text-slate-700">
+        <p>{word.exampleSentence}</p>
+        <p className="mt-1 text-xs text-slate-500">
+          {word.exampleSentenceJa}
+        </p>
+      </div>
+      {word.note && (
+        <div className="rounded-lg bg-amber-50 p-2 text-sm text-amber-900 ring-1 ring-amber-200">
+          <span className="block text-[10px] font-medium uppercase tracking-wide text-amber-700">
+            Note
+          </span>
+          <span className="whitespace-pre-wrap">{word.note}</span>
+        </div>
+      )}
+      <p className="pt-1 text-xs text-slate-400">Tap to view full detail →</p>
+    </Link>
   );
 }
 

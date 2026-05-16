@@ -97,3 +97,13 @@ export async function termExists(
   const normalized = term.trim().toLowerCase();
   return all.some((w) => w.term.toLowerCase() === normalized);
 }
+
+export async function getWordByTerm(
+  term: string,
+  language: VocabularyWord["language"],
+): Promise<VocabularyWord | undefined> {
+  const db = await getDB();
+  const all = await db.getAllFromIndex("words", "byLanguage", language);
+  const normalized = term.trim().toLowerCase();
+  return all.find((w) => w.term.toLowerCase() === normalized);
+}
