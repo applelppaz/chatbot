@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { isLanguage } from "./languages";
 import type { AppSettings } from "./types";
 
 const STORAGE_KEY = "vocab-app-settings";
@@ -8,6 +9,7 @@ const DEFAULTS: AppSettings = {
   autoFlipAfterSpeak: false,
   speechRate: 0.9,
   geminiKeySlot: 1,
+  lastUsedLanguage: "english",
 };
 
 function read(): AppSettings {
@@ -37,6 +39,9 @@ function read(): AppSettings {
         parsed.geminiKeySlot === 3
           ? parsed.geminiKeySlot
           : DEFAULTS.geminiKeySlot,
+      lastUsedLanguage: isLanguage(parsed.lastUsedLanguage)
+        ? parsed.lastUsedLanguage
+        : DEFAULTS.lastUsedLanguage,
     };
   } catch {
     return DEFAULTS;

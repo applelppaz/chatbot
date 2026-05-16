@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LANGUAGES } from "../languages";
+import { LANGUAGES, LANGUAGE_ORDER } from "../languages";
 import { LanguagePicker } from "../components/LanguagePicker";
+import { LanguageBadge } from "../components/LanguageBadge";
 import { PlayButton } from "../components/PlayButton";
 import { extractItemsFromImage, generateMetadata } from "../api";
 import { putWord, putWords, termExists } from "../db";
 import { newWordSRS } from "../srs";
+import { useSettings } from "../settings";
 import type {
   ExtractedItem,
   Language,
+  MultiWordMetadata,
   VocabularyWord,
   WordMetadata,
 } from "../types";
@@ -16,8 +19,12 @@ import type {
 type Mode = "manual" | "image";
 
 export function AddPage() {
+  const [settings, updateSettings] = useSettings();
   const [mode, setMode] = useState<Mode>("manual");
-  const [language, setLanguage] = useState<Language>("english");
+
+  function setLanguage(next: Language) {
+    updateSettings({ lastUsedLanguage: next });
+  }
 
   return (
     <div className="space-y-5">
@@ -38,13 +45,16 @@ export function AddPage() {
 
       <section className="space-y-2">
         <label className="label">Language</label>
-        <LanguagePicker value={language} onChange={setLanguage} />
+        <LanguagePicker
+          value={settings.lastUsedLanguage}
+          onChange={setLanguage}
+        />
       </section>
 
       {mode === "manual" ? (
-        <ManualMode language={language} />
+        <ManualMode language={settings.lastUsedLanguage} />
       ) : (
-        <ImageMode language={language} />
+        <ImageMode language={settings.lastUsedLanguage} />
       )}
     </div>
   );
@@ -84,11 +94,22 @@ function ManualMode({ language }: { language: Language }) {
   const [term, setTerm] = useState("");
   const [note, setNote] = useState("");
   const [showNote, setShowNote] = useState(false);
-  const [preview, setPreview] = useState<WordMetadata | null>(null);
+  const [preview, setPreview] = useState<MultiWordMetadata | null>(null);
   const [saveAs, setSaveAs] = useState<SaveAs>("lemma");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState(false);
+  // Cross-language UI state
+  const [selectedTranslations, setSelectedTranslations] = useState<
+    Set<Language>
+  >(new Set());
+  const [savedTranslations, setSavedTranslations] = useState<Set<Language>>(
+    new Set(),
+  );
+  const [existingTranslations, setExistingTranslations] = useState<
+    Set<Language>
+  >(new Set());
+  const [savingBulk, setSavingBulk] = useState(false);
   const termInputRef = useRef<HTMLInputElement>(null);
 
   // Land on the page with the keyboard already up so consecutive adds are
@@ -96,6 +117,15 @@ function ManualMode({ language }: { language: Language }) {
   useEffect(() => {
     termInputRef.current?.focus();
   }, []);
+
+  // Reset per-preview state whenever the source language changes (a Generate
+  // tied to the old language is no longer relevant).
+  useEffect(() => {
+    setPreview(null);
+    setSelectedTranslations(new Set());
+    setSavedTranslations(new Set());
+    setExistingTranslations(new Set());
+  }, [language]);
 
   const trimmedTerm = term.trim();
   const lemmaSuggestion =
@@ -111,6 +141,9 @@ function ManualMode({ language }: { language: Language }) {
     setError(null);
     setPreview(null);
     setDuplicate(false);
+    setSelectedTranslations(new Set());
+    setSavedTranslations(new Set());
+    setExistingTranslations(new Set());
     try {
       const exists = await termExists(trimmedTerm, language);
       if (exists) {
@@ -118,8 +151,29 @@ function ManualMode({ language }: { language: Language }) {
         setLoading(false);
         return;
       }
-      const meta = await generateMetadata(trimmedTerm, language);
+      const meta = await generateMetadata(trimmedTerm, language, {
+        includeTranslations: true,
+      });
       setPreview(meta);
+      // Check duplicates in each target language up-front so cards can show
+      // "Already in bank" and be excluded from Save all.
+      const translations = meta.translations ?? {};
+      const existing = new Set<Language>();
+      const selectable = new Set<Language>();
+      await Promise.all(
+        (Object.entries(translations) as [Language, WordMetadata | undefined][]).map(
+          async ([lang, m]) => {
+            if (!m) return;
+            const targetTerm = (m.lemma ?? "").trim();
+            if (!targetTerm) return;
+            if (await termExists(targetTerm, lang)) existing.add(lang);
+            else selectable.add(lang);
+          },
+        ),
+      );
+      setExistingTranslations(existing);
+      // Default-tick the non-duplicate translations so "Save all" is one tap.
+      setSelectedTranslations(selectable);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to reach Gemini.");
     } finally {
@@ -154,6 +208,75 @@ function ManualMode({ language }: { language: Language }) {
     await putWord(word);
     navigate(`/words/${word.id}`, { replace: true });
   }
+
+  function toggleTranslation(lang: Language) {
+    setSelectedTranslations((prev) => {
+      const next = new Set(prev);
+      if (next.has(lang)) next.delete(lang);
+      else next.add(lang);
+      return next;
+    });
+  }
+
+  async function saveTranslation(lang: Language, meta: WordMetadata) {
+    const targetTerm = (meta.lemma ?? "").trim();
+    if (!targetTerm) return;
+    if (await termExists(targetTerm, lang)) {
+      setExistingTranslations((prev) => new Set(prev).add(lang));
+      return;
+    }
+    const now = Date.now();
+    const word: VocabularyWord = {
+      id: crypto.randomUUID(),
+      term: targetTerm,
+      language: lang,
+      pinyin: meta.pinyin,
+      japaneseTranslation: meta.japaneseTranslation,
+      exampleSentence: meta.exampleSentence,
+      exampleSentenceJa: meta.exampleSentenceJa,
+      lemma: meta.lemma,
+      partOfSpeech: meta.partOfSpeech,
+      inflectionNote: null,
+      note: null,
+      dateAdded: now,
+      ...newWordSRS(now),
+    };
+    await putWord(word);
+    setSavedTranslations((prev) => new Set(prev).add(lang));
+  }
+
+  async function saveAllTranslations() {
+    if (!preview?.translations) return;
+    setSavingBulk(true);
+    try {
+      const targets = LANGUAGE_ORDER.filter(
+        (l) =>
+          l !== language &&
+          selectedTranslations.has(l) &&
+          !savedTranslations.has(l) &&
+          !existingTranslations.has(l) &&
+          !!preview.translations?.[l],
+      );
+      for (const lang of targets) {
+        const meta = preview.translations[lang];
+        if (meta) await saveTranslation(lang, meta);
+      }
+    } finally {
+      setSavingBulk(false);
+    }
+  }
+
+  const translationLanguages = preview?.translations
+    ? LANGUAGE_ORDER.filter(
+        (l) => l !== language && !!preview.translations?.[l],
+      )
+    : [];
+  const pendingBulkCount = translationLanguages.filter(
+    (l) =>
+      selectedTranslations.has(l) &&
+      !savedTranslations.has(l) &&
+      !existingTranslations.has(l),
+  ).length;
 
   return (
     <div className="space-y-5">
@@ -266,6 +389,139 @@ function ManualMode({ language }: { language: Language }) {
           </button>
         </section>
       )}
+
+      {preview && translationLanguages.length > 0 && (
+        <section className="space-y-3">
+          <header className="flex items-center justify-between">
+            <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">
+              Also save in other languages
+            </h2>
+            <button
+              type="button"
+              className="text-xs text-slate-500 underline disabled:no-underline disabled:opacity-50"
+              disabled={savingBulk || pendingBulkCount === 0}
+              onClick={saveAllTranslations}
+            >
+              {savingBulk
+                ? "Saving…"
+                : pendingBulkCount === 0
+                  ? "Save all"
+                  : `Save all (${pendingBulkCount})`}
+            </button>
+          </header>
+
+          {translationLanguages.map((lang) => {
+            const meta = preview.translations?.[lang];
+            if (!meta) return null;
+            return (
+              <TranslationCard
+                key={lang}
+                language={lang}
+                meta={meta}
+                selected={selectedTranslations.has(lang)}
+                saved={savedTranslations.has(lang)}
+                duplicate={existingTranslations.has(lang)}
+                onToggle={() => toggleTranslation(lang)}
+                onSave={() => saveTranslation(lang, meta)}
+              />
+            );
+          })}
+        </section>
+      )}
+    </div>
+  );
+}
+
+function TranslationCard({
+  language,
+  meta,
+  selected,
+  saved,
+  duplicate,
+  onToggle,
+  onSave,
+}: {
+  language: Language;
+  meta: WordMetadata;
+  selected: boolean;
+  saved: boolean;
+  duplicate: boolean;
+  onToggle: () => void;
+  onSave: () => void | Promise<void>;
+}) {
+  const [saving, setSaving] = useState(false);
+  const targetTerm = (meta.lemma ?? "").trim() || "—";
+  const disabled = saved || duplicate;
+
+  async function handleClick() {
+    if (disabled || saving) return;
+    setSaving(true);
+    try {
+      await onSave();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      className={[
+        "card space-y-2 transition",
+        saved ? "opacity-60" : "",
+      ].join(" ")}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <LanguageBadge language={language} />
+            <span className="truncate text-xl font-semibold">{targetTerm}</span>
+          </div>
+          {meta.pinyin && (
+            <div className="mt-1 text-sm text-slate-500">{meta.pinyin}</div>
+          )}
+          <div className="mt-1 text-base text-slate-800">
+            {meta.japaneseTranslation}
+          </div>
+        </div>
+        <PlayButton text={targetTerm} language={language} />
+      </div>
+      <div className="rounded-lg bg-slate-50 p-2 text-sm text-slate-700">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-left">{meta.exampleSentence}</span>
+          <PlayButton
+            text={meta.exampleSentence}
+            language={language}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-700"
+          />
+        </div>
+        <div className="mt-1 text-xs text-slate-500">
+          {meta.exampleSentenceJa}
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-3 pt-1">
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-slate-900"
+            checked={selected}
+            disabled={disabled}
+            onChange={onToggle}
+          />
+          {duplicate
+            ? "Already in bank"
+            : saved
+              ? "Saved ✓"
+              : "Include in Save all"}
+        </label>
+        <button
+          type="button"
+          className="btn-secondary py-2 text-sm"
+          disabled={disabled || saving}
+          onClick={handleClick}
+        >
+          {saving ? "Saving…" : saved ? "Saved" : "Save"}
+        </button>
+      </div>
     </div>
   );
 }
