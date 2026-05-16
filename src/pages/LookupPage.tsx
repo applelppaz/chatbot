@@ -3,10 +3,13 @@ import { LANGUAGES } from "../languages";
 import { LanguagePicker } from "../components/LanguagePicker";
 import { FormsView } from "../components/FormsView";
 import { lookupForms } from "../api";
+import { getSettings } from "../settings";
 import type { FormsLookup, Language } from "../types";
 
 export function LookupPage() {
-  const [language, setLanguage] = useState<Language>("english");
+  const [language, setLanguage] = useState<Language>(
+    () => getSettings().lastUsedLanguage,
+  );
   const [term, setTerm] = useState("");
   const [forms, setForms] = useState<FormsLookup | null>(null);
   const [loading, setLoading] = useState(false);

@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 const items = [
   { to: "/words", label: "Words", icon: WordsIcon },
   { to: "/add", label: "Add", icon: PlusIcon },
+  { to: "/lookup", label: "Forms", icon: FormsIcon },
   { to: "/review", label: "Review", icon: ReviewIcon },
   { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];
@@ -45,6 +46,15 @@ function PlusIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} {...props}>
       <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function FormsIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} {...props}>
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <path d="M4 9h16M4 14h16M10 9v11" strokeLinecap="round" />
     </svg>
   );
 }
