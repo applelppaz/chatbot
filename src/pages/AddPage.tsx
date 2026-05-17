@@ -347,20 +347,46 @@ function ManualMode({ language }: { language: Language }) {
         <label className="label" htmlFor="term">
           Term
         </label>
-        <input
-          ref={termInputRef}
-          id="term"
-          className="input"
-          placeholder={LANGUAGES[language].inputPlaceholder}
-          value={term}
-          onChange={(e) => setTerm(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && trimmedTerm && !loading) handleGenerate();
-          }}
-          autoCapitalize="off"
-          autoCorrect="off"
-          autoFocus
-        />
+        <div className="relative">
+          <input
+            ref={termInputRef}
+            id="term"
+            className="input pr-11"
+            placeholder={LANGUAGES[language].inputPlaceholder}
+            value={term}
+            onChange={(e) => setTerm(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && trimmedTerm && !loading) handleGenerate();
+            }}
+            autoCapitalize="off"
+            autoCorrect="off"
+            autoFocus
+          />
+          {term.length > 0 && (
+            <button
+              type="button"
+              aria-label="Clear term"
+              onClick={() => {
+                setTerm("");
+                termInputRef.current?.focus();
+              }}
+              className="absolute inset-y-0 right-2 my-auto inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                className="h-4 w-4"
+              >
+                <path
+                  d="M6 6l12 12M18 6L6 18"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          )}
+        </div>
         <button
           type="button"
           className="btn-primary w-full"
