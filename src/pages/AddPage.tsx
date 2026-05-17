@@ -5,12 +5,14 @@ import { LanguageBadge } from "../components/LanguageBadge";
 import { LanguagePicker } from "../components/LanguagePicker";
 import { PlayButton } from "../components/PlayButton";
 import { TranslationCard } from "../components/TranslationCard";
-import { extractItemsFromImage, generateMetadata } from "../api";
+import { FormsView } from "../components/FormsView";
+import { extractItemsFromImage, generateMetadata, lookupForms } from "../api";
 import { getWordByTerm, putWord, putWords, termExists } from "../db";
 import { newWordSRS } from "../srs";
 import { useSettings } from "../settings";
 import type {
   ExtractedItem,
+  FormsLookup,
   Language,
   MultiWordMetadata,
   VocabularyWord,
@@ -118,6 +120,10 @@ function ManualMode({ language }: { language: Language }) {
     Set<Language>
   >(new Set());
   const [savingBulk, setSavingBulk] = useState(false);
+  // Conjugation / declension preview for the generated word, before saving.
+  const [forms, setForms] = useState<FormsLookup | null>(null);
+  const [formsLoading, setFormsLoading] = useState(false);
+  const [formsError, setFormsError] = useState<string | null>(null);
   const termInputRef = useRef<HTMLInputElement>(null);
 
   // Land on the page with the keyboard already up so consecutive adds are
@@ -135,6 +141,8 @@ function ManualMode({ language }: { language: Language }) {
     setSelectedTranslations(new Set());
     setSavedTranslations(new Set());
     setExistingTranslations(new Set());
+    setForms(null);
+    setFormsError(null);
   }, [language]);
 
   const trimmedTerm = term.trim();
@@ -155,6 +163,8 @@ function ManualMode({ language }: { language: Language }) {
     setSelectedTranslations(new Set());
     setSavedTranslations(new Set());
     setExistingTranslations(new Set());
+    setForms(null);
+    setFormsError(null);
     try {
       const existing = await getWordByTerm(trimmedTerm, language);
       if (existing) {
@@ -233,6 +243,23 @@ function ManualMode({ language }: { language: Language }) {
   async function handleSave() {
     const saved = await saveSource();
     if (saved) navigate(`/words/${saved.id}`, { replace: true });
+  }
+
+  async function loadForms() {
+    if (!preview || forms || formsLoading) return;
+    setFormsLoading(true);
+    setFormsError(null);
+    try {
+      // Prefer the lemma when Gemini surfaced one — conjugation tables are
+      // defined per dictionary form, not per inflected input.
+      const queryTerm = preview.lemma ?? termToSave;
+      const result = await lookupForms(queryTerm, language);
+      setForms(result);
+    } catch (err) {
+      setFormsError(err instanceof Error ? err.message : "Lookup failed.");
+    } finally {
+      setFormsLoading(false);
+    }
   }
 
   function toggleTranslation(lang: Language) {
@@ -320,20 +347,46 @@ function ManualMode({ language }: { language: Language }) {
         <label className="label" htmlFor="term">
           Term
         </label>
-        <input
-          ref={termInputRef}
-          id="term"
-          className="input"
-          placeholder={LANGUAGES[language].inputPlaceholder}
-          value={term}
-          onChange={(e) => setTerm(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && trimmedTerm && !loading) handleGenerate();
-          }}
-          autoCapitalize="off"
-          autoCorrect="off"
-          autoFocus
-        />
+        <div className="relative">
+          <input
+            ref={termInputRef}
+            id="term"
+            className="input pr-11"
+            placeholder={LANGUAGES[language].inputPlaceholder}
+            value={term}
+            onChange={(e) => setTerm(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && trimmedTerm && !loading) handleGenerate();
+            }}
+            autoCapitalize="off"
+            autoCorrect="off"
+            autoFocus
+          />
+          {term.length > 0 && (
+            <button
+              type="button"
+              aria-label="Clear term"
+              onClick={() => {
+                setTerm("");
+                termInputRef.current?.focus();
+              }}
+              className="absolute inset-y-0 right-2 my-auto inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                className="h-4 w-4"
+              >
+                <path
+                  d="M6 6l12 12M18 6L6 18"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          )}
+        </div>
         <button
           type="button"
           className="btn-primary w-full"
@@ -399,6 +452,27 @@ function ManualMode({ language }: { language: Language }) {
             playLanguage={language}
           />
           <Field label="Example (JA)" value={preview.exampleSentenceJa} />
+
+          <div className="space-y-2">
+            {!forms && !formsLoading && (
+              <button
+                type="button"
+                className="btn-secondary w-full"
+                onClick={loadForms}
+              >
+                Show forms / conjugations
+              </button>
+            )}
+            {formsLoading && (
+              <p className="text-center text-sm text-slate-500">
+                Looking up forms…
+              </p>
+            )}
+            {formsError && (
+              <p className="text-sm text-rose-700">{formsError}</p>
+            )}
+            {forms && <FormsView forms={forms} language={language} />}
+          </div>
 
           {!savedSourceId && (
             <div className="space-y-1">
