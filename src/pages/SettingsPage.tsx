@@ -309,6 +309,37 @@ export function SettingsPage() {
           disabled={!settings.autoPlayReview}
           onChange={(v) => updateSettings({ autoFlipAfterSpeak: v })}
         />
+        <div
+          className={[
+            "space-y-1",
+            !settings.autoPlayReview || !settings.autoFlipAfterSpeak
+              ? "opacity-60"
+              : "",
+          ].join(" ")}
+        >
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium">Pause before flipping</span>
+            <span className="text-slate-500">
+              {settings.autoFlipDelaySec.toFixed(1)} s
+            </span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={5}
+            step={0.5}
+            value={settings.autoFlipDelaySec}
+            disabled={!settings.autoPlayReview || !settings.autoFlipAfterSpeak}
+            onChange={(e) =>
+              updateSettings({ autoFlipDelaySec: Number(e.target.value) })
+            }
+            className="w-full accent-slate-900"
+          />
+          <p className="text-xs text-slate-500">
+            How long to wait after the term finishes playing before revealing
+            the meaning. Gives you a moment to recall the answer.
+          </p>
+        </div>
       </section>
 
       <section className="card space-y-3">
