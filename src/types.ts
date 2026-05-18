@@ -66,6 +66,10 @@ export type GeminiKeySlot = 1 | 2 | 3;
 export interface AppSettings {
   autoPlayReview: boolean;
   autoFlipAfterSpeak: boolean;
+  // Seconds to wait between the term audio finishing and the answer being
+  // revealed (only used when autoFlipAfterSpeak is on). User-configurable so
+  // the pause can match how long they want to recall the meaning.
+  autoFlipDelaySec: number;
   speechRate: number;
   geminiKeySlot: GeminiKeySlot;
   // Persists the language picked on the Add page so consecutive adds in the

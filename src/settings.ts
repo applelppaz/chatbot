@@ -7,6 +7,7 @@ const STORAGE_KEY = "vocab-app-settings";
 const DEFAULTS: AppSettings = {
   autoPlayReview: false,
   autoFlipAfterSpeak: false,
+  autoFlipDelaySec: 2,
   speechRate: 0.9,
   geminiKeySlot: 1,
   lastUsedLanguage: "english",
@@ -27,6 +28,12 @@ function read(): AppSettings {
         typeof parsed.autoFlipAfterSpeak === "boolean"
           ? parsed.autoFlipAfterSpeak
           : DEFAULTS.autoFlipAfterSpeak,
+      autoFlipDelaySec:
+        typeof parsed.autoFlipDelaySec === "number" &&
+        parsed.autoFlipDelaySec >= 0 &&
+        parsed.autoFlipDelaySec <= 10
+          ? parsed.autoFlipDelaySec
+          : DEFAULTS.autoFlipDelaySec,
       speechRate:
         typeof parsed.speechRate === "number" &&
         parsed.speechRate >= 0.3 &&

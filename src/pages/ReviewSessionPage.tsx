@@ -37,6 +37,9 @@ export function ReviewSessionPage() {
   // a synth.cancel triggered by the next card's speak()) can bail instead of
   // flipping the wrong card.
   const currentCardIdRef = useRef<string | null>(null);
+  // Pending auto-flip timeout — cleared when the card changes or the user
+  // grades / advances, so the delay never reveals the wrong card.
+  const flipTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     dueWords(language).then((words) => {
@@ -45,8 +48,9 @@ export function ReviewSessionPage() {
   }, [language]);
 
   // Auto-play the term whenever a new card surfaces (if enabled in Settings).
-  // If auto-flip-after-speak is also on, reveal the answer when the utterance
-  // finishes — but only if we're still on the same card.
+  // If auto-flip-after-speak is also on, reveal the answer once the utterance
+  // finishes plus the user-configured pause — same-card guard prevents stale
+  // onEnd/timeout callbacks from flipping the next card by mistake.
   useEffect(() => {
     if (!queue || queue.length === 0) return;
     if (index >= queue.length) return;
@@ -57,10 +61,31 @@ export function ReviewSessionPage() {
       onEnd: () => {
         if (!settings.autoFlipAfterSpeak) return;
         if (currentCardIdRef.current !== card.id) return;
-        setRevealed((prev) => prev || true);
+        const delayMs = Math.max(0, settings.autoFlipDelaySec) * 1000;
+        if (delayMs === 0) {
+          setRevealed((prev) => prev || true);
+          return;
+        }
+        flipTimeoutRef.current = window.setTimeout(() => {
+          flipTimeoutRef.current = null;
+          if (currentCardIdRef.current !== card.id) return;
+          setRevealed((prev) => prev || true);
+        }, delayMs);
       },
     });
-  }, [queue, index, settings.autoPlayReview, settings.autoFlipAfterSpeak]);
+    return () => {
+      if (flipTimeoutRef.current !== null) {
+        window.clearTimeout(flipTimeoutRef.current);
+        flipTimeoutRef.current = null;
+      }
+    };
+  }, [
+    queue,
+    index,
+    settings.autoPlayReview,
+    settings.autoFlipAfterSpeak,
+    settings.autoFlipDelaySec,
+  ]);
 
   if (!queue) {
     return <p className="py-12 text-center text-slate-400">Loading…</p>;
