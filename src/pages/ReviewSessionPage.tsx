@@ -106,7 +106,7 @@ export function ReviewSessionPage() {
     const total = stats.again + stats.hard + stats.good + stats.easy;
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-semibold">Session complete</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Session complete</h1>
         <section className="card space-y-2">
           <p className="text-center text-3xl font-semibold">{total}</p>
           <p className="text-center text-sm text-slate-500">

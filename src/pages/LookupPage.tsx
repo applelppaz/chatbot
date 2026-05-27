@@ -35,7 +35,7 @@ export function LookupPage() {
   return (
     <div className="space-y-4">
       <header>
-        <h1 className="text-2xl font-semibold">Forms</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Forms</h1>
         <p className="text-sm text-slate-500">
           Look up the conjugation or declension of any word — without saving it
           to your word bank.

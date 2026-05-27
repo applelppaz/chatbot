@@ -31,7 +31,7 @@ export function AddPage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-semibold">Add Word</h1>
+      <h1 className="text-3xl font-semibold tracking-tight">Add Word</h1>
 
       <div className="grid grid-cols-2 gap-2">
         <ModeButton
