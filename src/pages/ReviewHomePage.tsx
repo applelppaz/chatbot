@@ -60,7 +60,7 @@ export function ReviewHomePage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Review</h1>
+      <h1 className="text-3xl font-semibold tracking-tight">Review</h1>
 
       <section className="card grid grid-cols-2 gap-3 text-center">
         <div>
