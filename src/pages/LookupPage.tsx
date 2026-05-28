@@ -2,6 +2,7 @@ import { useState } from "react";
 import { LANGUAGES } from "../languages";
 import { LanguagePicker } from "../components/LanguagePicker";
 import { FormsView } from "../components/FormsView";
+import { Alert } from "../components/Alert";
 import { lookupForms } from "../api";
 import { getSettings } from "../settings";
 import type { FormsLookup, Language } from "../types";
@@ -71,7 +72,7 @@ export function LookupPage() {
         >
           {loading ? "Looking up…" : "Look up"}
         </button>
-        {error && <p className="text-sm text-rose-700">{error}</p>}
+        {error && <Alert>{error}</Alert>}
       </section>
 
       {forms && <FormsView forms={forms} language={language} />}

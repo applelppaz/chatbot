@@ -6,6 +6,7 @@ import { LanguagePicker } from "../components/LanguagePicker";
 import { PlayButton } from "../components/PlayButton";
 import { TranslationCard } from "../components/TranslationCard";
 import { FormsView } from "../components/FormsView";
+import { Alert } from "../components/Alert";
 import { extractItemsFromImage, generateMetadata, lookupForms } from "../api";
 import { getWordByTerm, putWord, putWords, termExists } from "../db";
 import { newWordSRS } from "../srs";
@@ -392,7 +393,7 @@ function ManualMode({ language }: { language: Language }) {
         >
           {loading ? "Generating…" : "Generate"}
         </button>
-        {error && <p className="text-sm text-rose-700">{error}</p>}
+        {error && <Alert>{error}</Alert>}
       </section>
 
       {existingSourceWord && (
@@ -465,9 +466,7 @@ function ManualMode({ language }: { language: Language }) {
                 Looking up forms…
               </p>
             )}
-            {formsError && (
-              <p className="text-sm text-rose-700">{formsError}</p>
-            )}
+            {formsError && <Alert>{formsError}</Alert>}
             {forms && <FormsView forms={forms} language={language} />}
           </div>
 
@@ -815,7 +814,7 @@ function ImageMode({ language }: { language: Language }) {
               }}
             />
           </label>
-          {error && <p className="text-sm text-rose-700">{error}</p>}
+          {error && <Alert>{error}</Alert>}
         </section>
       )}
 
