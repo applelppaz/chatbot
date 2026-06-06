@@ -93,7 +93,7 @@ export function WordsPage() {
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="truncate text-lg font-medium">
+                    <span className="break-words text-lg font-medium">
                       {w.term}
                     </span>
                     <LanguageBadge language={w.language} />
@@ -101,7 +101,7 @@ export function WordsPage() {
                   {w.pinyin && (
                     <div className="text-sm text-slate-500">{w.pinyin}</div>
                   )}
-                  <div className="truncate text-sm text-slate-600">
+                  <div className="break-words text-sm text-slate-600">
                     {w.japaneseTranslation}
                   </div>
                 </div>

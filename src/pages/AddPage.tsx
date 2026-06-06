@@ -430,7 +430,7 @@ function ManualMode({ language }: { language: Language }) {
           )}
           <header className="flex items-center justify-between">
             <div className="min-w-0">
-              <div className="truncate text-2xl font-semibold">{termToSave}</div>
+              <div className="break-words text-2xl font-semibold">{termToSave}</div>
               {preview.pinyin && (
                 <div className="text-sm text-slate-500">{preview.pinyin}</div>
               )}
@@ -565,7 +565,7 @@ function ExistingWordCard({ word }: { word: VocabularyWord }) {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <LanguageBadge language={word.language} />
-            <span className="truncate text-xl font-semibold">{word.term}</span>
+            <span className="break-words text-xl font-semibold">{word.term}</span>
           </div>
           {word.pinyin && (
             <div className="mt-1 text-sm text-slate-500">{word.pinyin}</div>
@@ -622,10 +622,10 @@ function SaveAsButton({
           : "bg-white text-amber-900 ring-amber-300 hover:bg-amber-100",
       ].join(" ")}
     >
-      <div className="truncate font-medium">{label}</div>
+      <div className="break-words font-medium">{label}</div>
       <div
         className={[
-          "truncate text-xs",
+          "break-words text-xs",
           active ? "text-amber-100" : "text-amber-700",
         ].join(" ")}
       >

@@ -12,7 +12,7 @@ export function FormsView({ forms, language }: Props) {
       <div className="card space-y-1">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <div className="truncate text-xl font-semibold">{forms.lemma}</div>
+            <div className="break-words text-xl font-semibold">{forms.lemma}</div>
             {forms.pinyin && (
               <div className="text-sm text-slate-500">{forms.pinyin}</div>
             )}

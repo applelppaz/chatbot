@@ -227,7 +227,7 @@ export function WordDetailPage() {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="truncate text-3xl font-semibold">{word.term}</h1>
+              <h1 className="break-words text-3xl font-semibold">{word.term}</h1>
               <LanguageBadge language={word.language} />
             </div>
             {word.pinyin && (

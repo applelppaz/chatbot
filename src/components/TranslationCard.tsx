@@ -47,7 +47,7 @@ export function TranslationCard({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <LanguageBadge language={language} />
-            <span className="truncate text-xl font-semibold">{targetTerm}</span>
+            <span className="break-words text-xl font-semibold">{targetTerm}</span>
           </div>
           {meta.pinyin && (
             <div className="mt-1 text-sm text-slate-500">{meta.pinyin}</div>
