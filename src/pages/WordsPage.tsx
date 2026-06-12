@@ -84,12 +84,12 @@ export function WordsPage() {
       ) : filtered.length === 0 ? (
         <EmptyState onAdd={() => navigate("/add")} hasAny={words.length > 0} />
       ) : (
-        <ul className="divide-y divide-slate-200 overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200">
+        <ul className="divide-y divide-white/40 overflow-hidden rounded-3xl bg-white/65 ring-1 ring-white/60 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.25)] backdrop-blur-xl">
           {filtered.map((w) => (
             <li key={w.id}>
               <Link
                 to={`/words/${w.id}`}
-                className="flex items-center justify-between gap-3 px-4 py-3 active:bg-slate-50"
+                className="flex items-center justify-between gap-3 px-4 py-3 transition active:bg-white/40"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">

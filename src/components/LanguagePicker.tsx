@@ -18,10 +18,10 @@ export function LanguagePicker({ value, onChange }: Props) {
             type="button"
             onClick={() => onChange(code)}
             className={[
-              "rounded-xl px-3 py-3 text-sm font-medium ring-1 transition",
+              "rounded-2xl px-3 py-3 text-sm font-medium backdrop-blur-xl ring-1 transition",
               active
-                ? "bg-slate-900 text-white ring-slate-900"
-                : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
+                ? "bg-slate-900 text-white ring-slate-900 shadow-[0_8px_24px_-12px_rgba(15,23,42,0.6)]"
+                : "bg-white/65 text-slate-700 ring-white/60 hover:bg-white/80",
             ].join(" ")}
           >
             <div className="text-base">{info.shortLabel}</div>

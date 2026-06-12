@@ -390,7 +390,21 @@ function ManualMode({ language }: { language: Language }) {
           disabled={!trimmedTerm || loading}
           onClick={handleGenerate}
         >
-          {loading ? "Generating…" : "Generate"}
+          {loading ? (
+            "Generating…"
+          ) : (
+            <>
+              <svg
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="h-5 w-5"
+                aria-hidden
+              >
+                <path d="M12 2l1.7 4.6L18 8l-4.3 1.4L12 14l-1.7-4.6L6 8l4.3-1.4L12 2zM5 14l1 2.5L8.5 17 6 18l-1 2.5L4 18l-2.5-1L4 16l1-2zM17 14l.9 2.1L20 17l-2.1.9L17 20l-.9-2.1L14 17l2.1-.9L17 14z" />
+              </svg>
+              Generate
+            </>
+          )}
         </button>
         {error && <p className="text-sm text-rose-700">{error}</p>}
       </section>
@@ -503,11 +517,25 @@ function ManualMode({ language }: { language: Language }) {
               to={`/words/${savedSourceId}`}
               className="btn-secondary w-full text-center"
             >
-              Saved ✓ — view {LANGUAGES[language].label} word
+              Saved ✓ — view word
             </Link>
           ) : (
             <button className="btn-primary w-full" onClick={handleSave}>
-              Save to word bank
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                className="h-5 w-5"
+                aria-hidden
+              >
+                <path
+                  d="M5 12l4 4L19 6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Save
             </button>
           )}
         </section>
@@ -797,11 +825,6 @@ function ImageMode({ language }: { language: Language }) {
 
       {phase === "pick" && (
         <section className="space-y-3">
-          <p className="text-sm text-slate-600">
-            Take a photo or upload an image. Gemini reads the{" "}
-            {LANGUAGES[language].label} text, joins words split across lines,
-            and lists everything it found so you can pick what to keep.
-          </p>
           <label className="btn-primary w-full cursor-pointer">
             Choose image / take photo
             <input

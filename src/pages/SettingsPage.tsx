@@ -158,13 +158,8 @@ export function SettingsPage() {
         {exportError && (
           <p className="text-sm text-rose-700">{exportError}</p>
         )}
-        <p className="text-xs text-slate-500">
-          Downloads an .xlsx file with one row per word: Language, Term, Pinyin
-          (for Chinese), Japanese, Example, Example (JA), Part of speech, Added.
-          Opens in Excel, Numbers, Google Sheets, and LibreOffice.
-        </p>
 
-        <div className="border-t border-slate-200 pt-3 space-y-2">
+        <div className="border-t border-white/40 pt-3 space-y-2">
           <label className="btn-secondary w-full cursor-pointer">
             Import from Excel (.xlsx)
             <input
@@ -178,11 +173,6 @@ export function SettingsPage() {
               }}
             />
           </label>
-          <p className="text-xs text-slate-500">
-            Reads any .xlsx with at least Language, Term, Japanese, and Example
-            columns (header names are matched case-insensitively in English or
-            Japanese — e.g. 言語 / 単語 / 意味 / 例文 also work).
-          </p>
           {importError && (
             <p className="text-sm text-rose-700">{importError}</p>
           )}
@@ -391,11 +381,6 @@ export function SettingsPage() {
         <summary className="cursor-pointer font-medium">
           Advanced: API key rotation
         </summary>
-        <p className="text-xs text-slate-500">
-          Switch which Gemini API key the server uses. Each key has its own rate
-          limit, so rotating manually lets you keep working when one gets
-          throttled.
-        </p>
         <div className="grid grid-cols-3 gap-2">
           {([1, 2, 3] as GeminiKeySlot[]).map((slot) => {
             const configured = keyStatus?.slots[slot] ?? slot === 1;
