@@ -225,11 +225,11 @@ export function WordDetailPage() {
 
       <section className="card space-y-3">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="truncate text-3xl font-semibold">{word.term}</h1>
-              <LanguageBadge language={word.language} />
-            </div>
+          <div className="min-w-0 flex-1">
+            <LanguageBadge language={word.language} />
+            <h1 className="mt-1 break-words text-3xl font-semibold">
+              {word.term}
+            </h1>
             {word.pinyin && (
               <div className="mt-1 text-base text-slate-500">{word.pinyin}</div>
             )}

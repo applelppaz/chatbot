@@ -391,7 +391,21 @@ function ManualMode({ language }: { language: Language }) {
           disabled={!trimmedTerm || loading}
           onClick={handleGenerate}
         >
-          {loading ? "Generating…" : "Generate"}
+          {loading ? (
+            "Generating…"
+          ) : (
+            <>
+              <svg
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="h-5 w-5"
+                aria-hidden
+              >
+                <path d="M12 2l1.7 4.6L18 8l-4.3 1.4L12 14l-1.7-4.6L6 8l4.3-1.4L12 2zM5 14l1 2.5L8.5 17 6 18l-1 2.5L4 18l-2.5-1L4 16l1-2zM17 14l.9 2.1L20 17l-2.1.9L17 20l-.9-2.1L14 17l2.1-.9L17 14z" />
+              </svg>
+              Generate
+            </>
+          )}
         </button>
         {error && <Alert>{error}</Alert>}
       </section>
@@ -429,9 +443,9 @@ function ManualMode({ language }: { language: Language }) {
               </div>
             </div>
           )}
-          <header className="flex items-center justify-between">
-            <div className="min-w-0">
-              <div className="truncate text-2xl font-semibold">{termToSave}</div>
+          <header className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="break-words text-2xl font-semibold">{termToSave}</div>
               {preview.pinyin && (
                 <div className="text-sm text-slate-500">{preview.pinyin}</div>
               )}
@@ -502,11 +516,25 @@ function ManualMode({ language }: { language: Language }) {
               to={`/words/${savedSourceId}`}
               className="btn-secondary w-full text-center"
             >
-              Saved ✓ — view {LANGUAGES[language].label} word
+              Saved ✓ — view word
             </Link>
           ) : (
             <button className="btn-primary w-full" onClick={handleSave}>
-              Save to word bank
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                className="h-5 w-5"
+                aria-hidden
+              >
+                <path
+                  d="M5 12l4 4L19 6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Save
             </button>
           )}
         </section>
@@ -561,10 +589,10 @@ function ExistingWordCard({ word }: { word: VocabularyWord }) {
       className="card block space-y-2 transition active:bg-slate-50"
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <LanguageBadge language={word.language} />
-            <span className="truncate text-xl font-semibold">{word.term}</span>
+        <div className="min-w-0 flex-1">
+          <LanguageBadge language={word.language} />
+          <div className="mt-1 break-words text-xl font-semibold">
+            {word.term}
           </div>
           {word.pinyin && (
             <div className="mt-1 text-sm text-slate-500">{word.pinyin}</div>
@@ -621,10 +649,10 @@ function SaveAsButton({
           : "bg-white text-amber-900 ring-amber-300 hover:bg-amber-100",
       ].join(" ")}
     >
-      <div className="truncate font-medium">{label}</div>
+      <div className="break-words font-medium">{label}</div>
       <div
         className={[
-          "truncate text-xs",
+          "break-words text-xs",
           active ? "text-amber-100" : "text-amber-700",
         ].join(" ")}
       >
@@ -796,11 +824,6 @@ function ImageMode({ language }: { language: Language }) {
 
       {phase === "pick" && (
         <section className="space-y-3">
-          <p className="text-sm text-slate-600">
-            Take a photo or upload an image. Gemini reads the{" "}
-            {LANGUAGES[language].label} text, joins words split across lines,
-            and lists everything it found so you can pick what to keep.
-          </p>
           <label className="btn-primary w-full cursor-pointer">
             Choose image / take photo
             <input

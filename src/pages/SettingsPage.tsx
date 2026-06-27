@@ -6,8 +6,7 @@ import { useSettings } from "../settings";
 import { exportWordsToXlsx } from "../export";
 import { parseXlsxFile, type ImportResult, type ImportRow } from "../import";
 import { newWordSRS } from "../srs";
-import { getKeyStatus } from "../api";
-import type { GeminiKeySlot, KeyStatus, VocabularyWord } from "../types";
+import type { VocabularyWord } from "../types";
 
 interface ImportPreview extends ImportResult {
   duplicates: ImportRow[];
@@ -23,7 +22,6 @@ export function SettingsPage() {
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importDone, setImportDone] = useState<{ inserted: number } | null>(null);
-  const [keyStatus, setKeyStatus] = useState<KeyStatus | null>(null);
   const [settings, updateSettings] = useSettings();
 
   function refreshCounts() {
@@ -37,13 +35,6 @@ export function SettingsPage() {
 
   useEffect(() => {
     refreshCounts();
-    getKeyStatus()
-      .then(setKeyStatus)
-      .catch(() => {
-        // If the status check fails (network, etc.), assume only slot 1 is
-        // available so the picker still renders sensibly.
-        setKeyStatus({ slots: { 1: true, 2: false, 3: false } });
-      });
   }, []);
 
   const speechOk = isSpeechSupported();
@@ -158,13 +149,8 @@ export function SettingsPage() {
         {exportError && (
           <p className="text-sm text-rose-700">{exportError}</p>
         )}
-        <p className="text-xs text-slate-500">
-          Downloads an .xlsx file with one row per word: Language, Term, Pinyin
-          (for Chinese), Japanese, Example, Example (JA), Part of speech, Added.
-          Opens in Excel, Numbers, Google Sheets, and LibreOffice.
-        </p>
 
-        <div className="border-t border-slate-200 pt-3 space-y-2">
+        <div className="border-t border-white/40 pt-3 space-y-2">
           <label className="btn-secondary w-full cursor-pointer">
             Import from Excel (.xlsx)
             <input
@@ -178,11 +164,6 @@ export function SettingsPage() {
               }}
             />
           </label>
-          <p className="text-xs text-slate-500">
-            Reads any .xlsx with at least Language, Term, Japanese, and Example
-            columns (header names are matched case-insensitively in English or
-            Japanese — e.g. 言語 / 単語 / 意味 / 例文 also work).
-          </p>
           {importError && (
             <p className="text-sm text-rose-700">{importError}</p>
           )}
@@ -387,53 +368,6 @@ export function SettingsPage() {
         )}
       </section>
 
-      <details className="card space-y-3">
-        <summary className="cursor-pointer font-medium">
-          Advanced: API key rotation
-        </summary>
-        <p className="text-xs text-slate-500">
-          Switch which Gemini API key the server uses. Each key has its own rate
-          limit, so rotating manually lets you keep working when one gets
-          throttled.
-        </p>
-        <div className="grid grid-cols-3 gap-2">
-          {([1, 2, 3] as GeminiKeySlot[]).map((slot) => {
-            const configured = keyStatus?.slots[slot] ?? slot === 1;
-            const active = settings.geminiKeySlot === slot;
-            return (
-              <button
-                key={slot}
-                type="button"
-                disabled={!configured}
-                onClick={() => updateSettings({ geminiKeySlot: slot })}
-                className={[
-                  "rounded-xl px-3 py-3 text-sm font-medium ring-1 transition",
-                  active && configured
-                    ? "bg-slate-900 text-white ring-slate-900"
-                    : configured
-                      ? "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50"
-                      : "cursor-not-allowed bg-slate-50 text-slate-400 ring-slate-200",
-                ].join(" ")}
-              >
-                <div className="text-base">Key {slot}</div>
-                <div className="text-[11px] opacity-80">
-                  {configured ? (active ? "Active" : "Available") : "Not set"}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-        {keyStatus &&
-          !keyStatus.slots[2] &&
-          !keyStatus.slots[3] && (
-            <p className="text-xs text-amber-700">
-              Slots 2 and 3 are not yet configured. Add{" "}
-              <code className="font-mono">VOCAB_GEMINI_KEY_2</code> /{" "}
-              <code className="font-mono">VOCAB_GEMINI_KEY_3</code> as Netlify
-              environment variables to enable them.
-            </p>
-          )}
-      </details>
     </div>
   );
 }

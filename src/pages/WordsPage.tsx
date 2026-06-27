@@ -79,24 +79,22 @@ export function WordsPage() {
       ) : filtered.length === 0 ? (
         <EmptyState onAdd={() => navigate("/add")} hasAny={words.length > 0} />
       ) : (
-        <ul className="divide-y divide-slate-200 overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200">
+        <ul className="divide-y divide-white/40 overflow-hidden rounded-3xl bg-white/65 ring-1 ring-white/60 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.25)] backdrop-blur-xl">
           {filtered.map((w) => (
             <li key={w.id}>
               <Link
                 to={`/words/${w.id}`}
-                className="flex items-center justify-between gap-3 px-4 py-3 active:bg-slate-50"
+                className="flex items-center justify-between gap-3 px-4 py-3 transition active:bg-white/40"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-lg font-medium">
-                      {w.term}
-                    </span>
-                    <LanguageBadge language={w.language} />
+                  <LanguageBadge language={w.language} />
+                  <div className="mt-1 break-words text-lg font-medium">
+                    {w.term}
                   </div>
                   {w.pinyin && (
                     <div className="text-sm text-slate-500">{w.pinyin}</div>
                   )}
-                  <div className="truncate text-sm text-slate-600">
+                  <div className="break-words text-sm text-slate-600">
                     {w.japaneseTranslation}
                   </div>
                 </div>

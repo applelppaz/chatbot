@@ -10,7 +10,7 @@ const items = [
 
 export function BottomNav() {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-white/40 bg-white/55 pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_-18px_rgba(15,23,42,0.18)] backdrop-blur-2xl">
       <ul className="mx-auto flex max-w-xl">
         {items.map(({ to, label, icon: Icon }) => (
           <li key={to} className="flex-1">
@@ -19,7 +19,7 @@ export function BottomNav() {
               end={to === "/words"}
               className={({ isActive }) =>
                 [
-                  "relative flex flex-col items-center gap-1 py-2 text-xs transition-colors",
+                  "relative flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors",
                   isActive ? "text-slate-900" : "text-slate-400",
                 ].join(" ")
               }
