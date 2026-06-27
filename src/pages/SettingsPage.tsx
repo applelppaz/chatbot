@@ -112,7 +112,7 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Settings</h1>
+      <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
 
       <section className="card space-y-3">
         <h2 className="font-medium">Word bank</h2>

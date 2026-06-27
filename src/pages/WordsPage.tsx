@@ -45,15 +45,10 @@ export function WordsPage() {
   return (
     <div className="space-y-4">
       <header className="flex items-baseline justify-between">
-        <h1 className="text-2xl font-semibold">Words</h1>
-        <div className="flex items-baseline gap-3">
-          <Link to="/lookup" className="text-sm text-slate-500 underline">
-            Forms ↗
-          </Link>
-          <span className="text-sm text-slate-500">
-            {words ? `${filtered.length} / ${words.length}` : ""}
-          </span>
-        </div>
+        <h1 className="text-3xl font-semibold tracking-tight">Words</h1>
+        <span className="text-sm tabular-nums text-slate-400">
+          {words ? `${filtered.length} / ${words.length}` : ""}
+        </span>
       </header>
 
       <input

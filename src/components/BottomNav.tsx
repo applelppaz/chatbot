@@ -19,13 +19,24 @@ export function BottomNav() {
               end={to === "/words"}
               className={({ isActive }) =>
                 [
-                  "flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition",
+                  "relative flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors",
                   isActive ? "text-slate-900" : "text-slate-400",
                 ].join(" ")
               }
             >
-              <Icon className="h-6 w-6" />
-              <span>{label}</span>
+              {({ isActive }) => (
+                <>
+                  <span
+                    className={[
+                      "absolute inset-x-6 top-0 h-0.5 rounded-full bg-slate-900 transition-opacity",
+                      isActive ? "opacity-100" : "opacity-0",
+                    ].join(" ")}
+                    aria-hidden
+                  />
+                  <Icon className="h-6 w-6" />
+                  <span>{label}</span>
+                </>
+              )}
             </NavLink>
           </li>
         ))}

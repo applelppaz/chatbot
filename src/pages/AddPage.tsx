@@ -6,6 +6,7 @@ import { LanguagePicker } from "../components/LanguagePicker";
 import { PlayButton } from "../components/PlayButton";
 import { TranslationCard } from "../components/TranslationCard";
 import { FormsView } from "../components/FormsView";
+import { Alert } from "../components/Alert";
 import { extractItemsFromImage, generateMetadata, lookupForms } from "../api";
 import { getWordByTerm, putWord, putWords, termExists } from "../db";
 import { newWordSRS } from "../srs";
@@ -31,7 +32,7 @@ export function AddPage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-semibold">Add Word</h1>
+      <h1 className="text-3xl font-semibold tracking-tight">Add Word</h1>
 
       <div className="grid grid-cols-2 gap-2">
         <ModeButton
@@ -406,7 +407,7 @@ function ManualMode({ language }: { language: Language }) {
             </>
           )}
         </button>
-        {error && <p className="text-sm text-rose-700">{error}</p>}
+        {error && <Alert>{error}</Alert>}
       </section>
 
       {existingSourceWord && (
@@ -479,9 +480,7 @@ function ManualMode({ language }: { language: Language }) {
                 Looking up forms…
               </p>
             )}
-            {formsError && (
-              <p className="text-sm text-rose-700">{formsError}</p>
-            )}
+            {formsError && <Alert>{formsError}</Alert>}
             {forms && <FormsView forms={forms} language={language} />}
           </div>
 
@@ -838,7 +837,7 @@ function ImageMode({ language }: { language: Language }) {
               }}
             />
           </label>
-          {error && <p className="text-sm text-rose-700">{error}</p>}
+          {error && <Alert>{error}</Alert>}
         </section>
       )}
 

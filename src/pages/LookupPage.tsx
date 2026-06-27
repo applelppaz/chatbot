@@ -2,6 +2,7 @@ import { useState } from "react";
 import { LANGUAGES } from "../languages";
 import { LanguagePicker } from "../components/LanguagePicker";
 import { FormsView } from "../components/FormsView";
+import { Alert } from "../components/Alert";
 import { lookupForms } from "../api";
 import { getSettings } from "../settings";
 import type { FormsLookup, Language } from "../types";
@@ -35,7 +36,7 @@ export function LookupPage() {
   return (
     <div className="space-y-4">
       <header>
-        <h1 className="text-2xl font-semibold">Forms</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Forms</h1>
       </header>
 
       <section className="space-y-2">
@@ -67,7 +68,7 @@ export function LookupPage() {
         >
           {loading ? "Looking up…" : "Look up"}
         </button>
-        {error && <p className="text-sm text-rose-700">{error}</p>}
+        {error && <Alert>{error}</Alert>}
       </section>
 
       {forms && <FormsView forms={forms} language={language} />}
