@@ -92,11 +92,9 @@ export function WordsPage() {
                 className="flex items-center justify-between gap-3 px-4 py-3 transition active:bg-white/40"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="break-words text-lg font-medium">
-                      {w.term}
-                    </span>
-                    <LanguageBadge language={w.language} />
+                  <LanguageBadge language={w.language} />
+                  <div className="mt-1 break-words text-lg font-medium">
+                    {w.term}
                   </div>
                   {w.pinyin && (
                     <div className="text-sm text-slate-500">{w.pinyin}</div>

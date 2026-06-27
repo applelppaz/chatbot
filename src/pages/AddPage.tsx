@@ -442,8 +442,8 @@ function ManualMode({ language }: { language: Language }) {
               </div>
             </div>
           )}
-          <header className="flex items-center justify-between">
-            <div className="min-w-0">
+          <header className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
               <div className="break-words text-2xl font-semibold">{termToSave}</div>
               {preview.pinyin && (
                 <div className="text-sm text-slate-500">{preview.pinyin}</div>
@@ -590,10 +590,10 @@ function ExistingWordCard({ word }: { word: VocabularyWord }) {
       className="card block space-y-2 transition active:bg-slate-50"
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <LanguageBadge language={word.language} />
-            <span className="break-words text-xl font-semibold">{word.term}</span>
+        <div className="min-w-0 flex-1">
+          <LanguageBadge language={word.language} />
+          <div className="mt-1 break-words text-xl font-semibold">
+            {word.term}
           </div>
           {word.pinyin && (
             <div className="mt-1 text-sm text-slate-500">{word.pinyin}</div>
